@@ -47,7 +47,7 @@
       font-weight: normal;
     }
 
-    input, button {
+    input, button, textarea {
       width: 80%;
       padding: 12px;
       font-size: 16px;
@@ -76,30 +76,79 @@
       word-wrap: break-word;
       min-height: 50px;
     }
+
+    .file-preview img {
+      max-width: 100%;
+      margin-top: 10px;
+      border-radius: 6px;
+    }
   </style>
 </head>
 <body>
 
-  <!-- Header / Branding -->
+  <!-- Chat met Digitale Assistent -->
   <div class="chat-box">
     <img class="logo" src="ahv-logo.jpg" alt="IvoGeijsen1 logo" />
     <h1>IvoGeijsen1</h1>
-    <h2>IvoGeijsen1 – stel je vraag over de herd data</h2>
+    <h2>IvoGeijsen1 – stel je vraag aan onze digitale assistent</h2>
 
-    <input id="herdQuestion" placeholder="Bijv. 'Analyseer de laatste MPR en geef koeien met hoog celgetal'..." />
+    <input id="userInput" placeholder="Typ hier je vraag..." />
     <br />
-    <button onclick="sendHerdQuestion()">Verstuur</button>
+    <button onclick="sendToGPT()">Verstuur</button>
     <pre id="response">Antwoord verschijnt hier...</pre>
+  </div>
+
+  <!-- Herd data (geen upload, alleen vraag) -->
+  <div class="chat-box">
+    <h2>Stel een vraag over herd data (zonder upload)</h2>
+    <input id="herdQuestion" placeholder="Bijv. Analyseer de laatste MPR en geef koeien met hoog celgetal..." />
+    <button onclick="sendHerdQuestion()">Verstuur</button>
+    <pre id="herdResponse">Antwoord verschijnt hier...</pre>
+  </div>
+
+  <!-- AHV / Foto Upload Sectie -->
+  <div class="chat-box">
+    <h2>Upload een foto van de ingevulde behandelkaart via je telefoon</h2>
+
+    <input type="file" id="imageUpload" accept="image/*" />
+    <br />
+    <button onclick="uploadImage()">Verstuur</button>
+    <pre id="imageResponse">Antwoord verschijnt hier...</pre>
+    <div class="file-preview" id="filePreview"></div>
   </div>
 
   <script>
     const companyName = "IvoGeijsen1";
     const companyDescription = document.querySelector('meta[name="company-description"]').content;
 
-    // Alleen herd-data vraag (geen uploads)
+    // Chat functie (algemeen)
+    async function sendToGPT() {
+      const input = document.getElementById("userInput").value;
+      const responseEl = document.getElementById("response");
+      responseEl.innerText = "Even nadenken...";
+
+      try {
+        const res = await fetch("https://hook.eu2.make.com/u2luxbx3o1wihpsbysz8gelret1x0jze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            company_name: companyName,
+            company_description: companyDescription,
+            message: input
+          })
+        });
+
+        const reply = await res.text();
+        responseEl.innerText = reply || "Geen antwoord ontvangen.";
+      } catch (err) {
+        responseEl.innerText = "Fout: " + err.message;
+      }
+    }
+
+    // Herd data vraag (zonder upload)
     async function sendHerdQuestion() {
       const input = document.getElementById("herdQuestion").value;
-      const responseEl = document.getElementById("response");
+      const responseEl = document.getElementById("herdResponse");
       responseEl.innerText = "Even nadenken...";
 
       try {
@@ -119,6 +168,48 @@
       } catch (err) {
         responseEl.innerText = "Fout: " + err.message;
       }
+    }
+
+    // Foto Upload functie (ongewijzigd)
+    async function uploadImage() {
+      const fileInput = document.getElementById("imageUpload");
+      const file = fileInput.files[0];
+      const previewEl = document.getElementById("filePreview");
+      const responseEl = document.getElementById("imageResponse");
+
+      if (!file) {
+        responseEl.innerText = "Geen bestand geselecteerd.";
+        return;
+      }
+
+      responseEl.innerText = "Bezig met uploaden (duurt ongeveer 1 minuut)...";
+      const reader = new FileReader();
+
+      reader.onload = async function(e) {
+        const base64Image = e.target.result;
+
+        previewEl.innerHTML = `<strong>Je upload:</strong><br><img src="${base64Image}" alt="Upload preview" />`;
+
+        try {
+          const res = await fetch("https://hook.eu2.make.com/u2luxbx3o1wihpsbysz8gelret1x0jze", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              company_name: companyName,
+              company_description: companyDescription,
+              message: "Afbeelding geüpload",
+              uploaded_image: base64Image
+            })
+          });
+
+          const reply = await res.text();
+          responseEl.innerText = reply || "Geen antwoord ontvangen.";
+        } catch (err) {
+          responseEl.innerText = "Fout: " + err.message;
+        }
+      };
+
+      reader.readAsDataURL(file);
     }
   </script>
 </body>
