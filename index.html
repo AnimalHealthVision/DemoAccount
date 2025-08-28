@@ -82,15 +82,26 @@
       margin-top: 10px;
       border-radius: 6px;
     }
+
+    .subtle {
+      color: #777;
+      font-size: 14px;
+      margin-top: -6px;
+      margin-bottom: 10px;
+      display: block;
+    }
   </style>
 </head>
 <body>
 
-  <!-- Chat met Digitale Assistent -->
+  <!-- Use case 1: Chat met Digitale Assistent + UBN -->
   <div class="chat-box">
     <img class="logo" src="ahv-logo.jpg" alt="IvoGeijsen1 logo" />
     <h1>FlorisHerrema</h1>
-    <h2>Stel je vraag aan onze digitale assistent</h2>
+    <h2>Use case 1 — Stel je vraag en vul je UBN in</h2>
+
+    <input id="ubnInput" placeholder="Vul hier je UBN (bedrijfsnummer) in..." />
+    <span class="subtle">UBN is optioneel, maar helpt bij het personaliseren van het antwoord.</span>
 
     <input id="userInput" placeholder="Typ hier je vraag..." />
     <br />
@@ -98,17 +109,9 @@
     <pre id="response">Antwoord verschijnt hier...</pre>
   </div>
 
-  <!-- Herd data (geen upload, alleen vraag) -->
+  <!-- Use case 3: AHV / Foto Upload Sectie (ongewijzigd) -->
   <div class="chat-box">
-    <h2>Stel een vraag over melk data</h2>
-    <input id="herdQuestion" placeholder="Bijv. Analyseer de laatste MPR en geef de melkproductie per dier..." />
-    <button onclick="sendHerdQuestion()">Verstuur</button>
-    <pre id="herdResponse">Antwoord verschijnt hier...</pre>
-  </div>
-
-  <!-- AHV / Foto Upload Sectie -->
-  <div class="chat-box">
-    <h2>Upload een foto van de ingevulde behandelkaart via je telefoon</h2>
+    <h2>Use case 3 — Upload een foto van de ingevulde behandelkaart via je telefoon</h2>
 
     <input type="file" id="imageUpload" accept="image/*" />
     <br />
@@ -121,21 +124,29 @@
     const companyName = "IvoGeijsen1";
     const companyDescription = document.querySelector('meta[name="company-description"]').content;
 
-    // Chat functie (algemeen)
+    // Use case 1: Chat functie (algemeen) + UBN
     async function sendToGPT() {
-      const input = document.getElementById("userInput").value;
+      const input = document.getElementById("userInput").value.trim();
+      const ubn = document.getElementById("ubnInput").value.trim();
       const responseEl = document.getElementById("response");
       responseEl.innerText = "Even nadenken...";
 
       try {
+        const payload = {
+          company_name: companyName,
+          company_description: companyDescription,
+          message: input
+        };
+
+        // Alleen meesturen als iets is ingevuld
+        if (ubn) {
+          payload.ubn = ubn;
+        }
+
         const res = await fetch("https://hook.eu2.make.com/u2luxbx3o1wihpsbysz8gelret1x0jze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            company_name: companyName,
-            company_description: companyDescription,
-            message: input
-          })
+          body: JSON.stringify(payload)
         });
 
         const reply = await res.text();
@@ -145,32 +156,7 @@
       }
     }
 
-    // Herd data vraag (zonder upload)
-    async function sendHerdQuestion() {
-      const input = document.getElementById("herdQuestion").value;
-      const responseEl = document.getElementById("herdResponse");
-      responseEl.innerText = "Even nadenken...";
-
-      try {
-        const res = await fetch("https://hook.eu2.make.com/u2luxbx3o1wihpsbysz8gelret1x0jze", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            company_name: companyName,
-            company_description: companyDescription,
-            message: input,
-            context: "herd_data_query_only"
-          })
-        });
-
-        const reply = await res.text();
-        responseEl.innerText = reply || "Geen antwoord ontvangen.";
-      } catch (err) {
-        responseEl.innerText = "Fout: " + err.message;
-      }
-    }
-
-    // Foto Upload functie (ongewijzigd)
+    // Use case 3: Foto Upload functie (ongewijzigd)
     async function uploadImage() {
       const fileInput = document.getElementById("imageUpload");
       const file = fileInput.files[0];
@@ -214,7 +200,3 @@
   </script>
 </body>
 </html>
-
-
-
-
