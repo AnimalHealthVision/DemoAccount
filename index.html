@@ -96,19 +96,18 @@
 
   <!-- Use case 1: Chat met Digitale Assistent + UBN -->
   <div class="chat-box">
-    <img class="logo" src="ahv-logo.jpg" alt="IvoGeijsen1 logo" />
+    <img class="logo" src="ahv-logo.jpg" alt="AHV logo" />
     <h1>FlorisHerrema</h1>
     <h2>Ask your question about the farm, cows, or sales</h2>
 
     <input id="ubnInput" placeholder="Vul hier je UBN (bedrijfsnummer) in..." />
-   
     <input id="userInput" placeholder="Typ hier je vraag..." />
     <br />
     <button onclick="sendToGPT()">Verstuur</button>
     <pre id="response">Antwoord verschijnt hier in 10 sec...</pre>
   </div>
 
-  <!-- Use case 3: AHV / Foto Upload Sectie (ongewijzigd) -->
+  <!-- Use case 3: AHV / Foto Upload Sectie -->
   <div class="chat-box">
     <h2>Upload een foto van de ingevulde behandelkaart via je telefoon</h2>
 
@@ -123,28 +122,50 @@
     const companyName = "TestAccount";
     const companyDescription = document.querySelector('meta[name="company-description"]').content;
 
-    // Use case 1: Chat functie (algemeen) + UBN
+    // --- Simple client-side language detector ---
+    function detectLanguage(text) {
+      const t = (text || "").trim().toLowerCase();
+      if (!t) return null;
+
+      const nl = /\b(hoe|waarom|wanneer|welke|met|en|de|het|een|koe|uier|celgetal|omzet|factuur)\b/;
+      const fr = /\b(quoi|pourquoi|quand|le|la|les|des|vache|mamelle|cellules|facture|chiffre)\b/;
+      const de = /\b(was|warum|wann|welche|und|die|der|das|kuh|euter|zellen|rechnung|umsatz)\b/;
+      const en = /\b(what|why|when|which|and|the|cow|udder|cells|invoice|revenue)\b/;
+
+      if (nl.test(t)) return "nl";
+      if (fr.test(t)) return "fr";
+      if (de.test(t)) return "de";
+      if (en.test(t)) return "en";
+
+      const nav = (navigator.language || navigator.userLanguage || "nl").slice(0,2);
+      if (["nl","en","fr","de"].includes(nav)) return nav;
+      return "nl"; // default fallback
+    }
+
+    // Use case 1: Chat functie
     async function sendToGPT() {
       const input = document.getElementById("userInput").value.trim();
       const ubn = document.getElementById("ubnInput").value.trim();
       const responseEl = document.getElementById("response");
       responseEl.innerText = "Even nadenken...";
 
+      const inputLang = detectLanguage(input);
+
       try {
         const payload = {
           company_name: companyName,
           company_description: companyDescription,
-          message: input
+          message: input,
+          input_language: inputLang
         };
-
-        // Alleen meesturen als iets is ingevuld
-        if (ubn) {
-          payload.ubn = ubn;
-        }
+        if (ubn) payload.ubn = ubn;
 
         const res = await fetch("https://hook.eu2.make.com/u2luxbx3o1wihpsbysz8gelret1x0jze", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "X-User-Language": inputLang || ""
+          },
           body: JSON.stringify(payload)
         });
 
@@ -155,7 +176,7 @@
       }
     }
 
-    // Use case 3: Foto Upload functie (ongewijzigd)
+    // Use case 3: Foto upload
     async function uploadImage() {
       const fileInput = document.getElementById("imageUpload");
       const file = fileInput.files[0];
@@ -172,18 +193,23 @@
 
       reader.onload = async function(e) {
         const base64Image = e.target.result;
-
         previewEl.innerHTML = `<strong>Je upload:</strong><br><img src="${base64Image}" alt="Upload preview" />`;
+
+        const inputLang = detectLanguage(document.getElementById("userInput").value);
 
         try {
           const res = await fetch("https://hook.eu2.make.com/u2luxbx3o1wihpsbysz8gelret1x0jze", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              "X-User-Language": inputLang || ""
+            },
             body: JSON.stringify({
               company_name: companyName,
               company_description: companyDescription,
               message: "Afbeelding geüpload",
-              uploaded_image: base64Image
+              uploaded_image: base64Image,
+              input_language: inputLang
             })
           });
 
@@ -199,5 +225,3 @@
   </script>
 </body>
 </html>
-
-
