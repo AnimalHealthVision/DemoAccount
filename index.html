@@ -2,7 +2,7 @@
 <html lang="nl">
 <head>
   <meta charset="UTF-8" />
-  <title>FlorisHerrema</title>
+  <title>AHV demo account</title>
   <meta name="company-description" content="Always respond in the same language as was written.">
   <style>
     body {
@@ -100,11 +100,11 @@
     <h1>FlorisHerrema</h1>
     <h2>Ask your question about the farm, cows, or sales</h2>
 
-    <input id="ubnInput" placeholder="Vul hier je UBN (bedrijfsnummer) in..." />
-    <input id="userInput" placeholder="Typ hier je vraag..." />
+    <input id="ubnInput" placeholder="Please enter your UBN (farm registration number)..." />
+    <input id="userInput" placeholder="Type your question here..." />
     <br />
     <button onclick="sendToGPT()">Verstuur</button>
-    <pre id="response">Antwoord verschijnt hier in 10 sec...</pre>
+    <pre id="response">Answer will appear here...</pre>
   </div>
 
   <!-- Use case 3: AHV / Foto Upload Sectie -->
@@ -114,7 +114,7 @@
     <input type="file" id="imageUpload" accept="image/*" />
     <br />
     <button onclick="uploadImage()">Verstuur</button>
-    <pre id="imageResponse">Antwoord verschijnt hier...</pre>
+    <pre id="imageResponse">Answer will appear here...</pre>
     <div class="file-preview" id="filePreview"></div>
   </div>
 
@@ -147,7 +147,7 @@
       const input = document.getElementById("userInput").value.trim();
       const ubn = document.getElementById("ubnInput").value.trim();
       const responseEl = document.getElementById("response");
-      responseEl.innerText = "Even nadenken...";
+      responseEl.innerText = "Thinking… answer will appear in 10 seconds.";
 
       const inputLang = detectLanguage(input);
 
@@ -225,3 +225,4 @@
   </script>
 </body>
 </html>
+
