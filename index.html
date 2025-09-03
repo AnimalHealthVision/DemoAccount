@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>FlorisHerrema</title>
-  <meta name="company-description" content="Focus op koeien in Florida">
+  <meta name="company-description" content="Always respond in the same language as was written.">
   <style>
     body {
       background-color: #f9f9f9;
@@ -98,14 +98,14 @@
   <div class="chat-box">
     <img class="logo" src="ahv-logo.jpg" alt="IvoGeijsen1 logo" />
     <h1>FlorisHerrema</h1>
-    <h2>Stel je vraag over de kudde en sales</h2>
+    <h2>Ask your question about the farm, cows, or sales</h2>
 
     <input id="ubnInput" placeholder="Vul hier je UBN (bedrijfsnummer) in..." />
    
     <input id="userInput" placeholder="Typ hier je vraag..." />
     <br />
     <button onclick="sendToGPT()">Verstuur</button>
-    <pre id="response">Antwoord verschijnt hier...</pre>
+    <pre id="response">Antwoord verschijnt hier in 10 sec...</pre>
   </div>
 
   <!-- Use case 3: AHV / Foto Upload Sectie (ongewijzigd) -->
@@ -120,7 +120,7 @@
   </div>
 
   <script>
-    const companyName = "IvoGeijsen1";
+    const companyName = "TestAccount";
     const companyDescription = document.querySelector('meta[name="company-description"]').content;
 
     // Use case 1: Chat functie (algemeen) + UBN
@@ -199,4 +199,5 @@
   </script>
 </body>
 </html>
+
 
