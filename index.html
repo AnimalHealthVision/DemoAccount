@@ -8,119 +8,133 @@
     body {
       background-color: #f9f9f9;
       font-family: Arial, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: flex-start;
-      height: 100vh;
-      margin: 0;
+      height: 100vh; margin: 0;
+    }
+    /* Soft gate styles */
+    #gate {
+      position: fixed; inset: 0; background: #0b172033;
+      display: flex; align-items: center; justify-content: center; z-index: 9999;
+      backdrop-filter: blur(6px);
+    }
+    .gate-card {
+      background: #fff; width: 90%; max-width: 420px; padding: 24px;
+      border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.15); text-align: center;
+    }
+    .gate-card h3 { margin: 0 0 8px; color: #007b5e; }
+    .gate-card p { margin: 0 0 16px; color: #555; }
+    .gate-card input[type="password"] {
+      width: 100%; padding: 12px; font-size: 16px;
+      border: 1px solid #ccc; border-radius: 8px; margin-bottom: 12px;
+    }
+    .gate-card button {
+      width: 100%; padding: 12px; font-size: 16px; border: none;
+      border-radius: 8px; background: #007b5e; color: #fff; cursor: pointer;
+    }
+    .gate-card button:hover { background: #005c49; }
+    .gate-error { color: #c02727; min-height: 22px; margin-top: 8px; font-size: 14px; }
+
+    /* App layout (onzichtbaar totdat unlocked) */
+    #app { display: none; }
+
+    /* Original app styles */
+    .wrap {
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
       padding-top: 30px;
     }
-
     .chat-box {
-      background: white;
-      padding: 30px;
-      border-radius: 12px;
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-      width: 90%;
-      max-width: 600px;
-      text-align: center;
-      margin-bottom: 30px;
+      background: white; padding: 30px; border-radius: 12px;
+      box-shadow: 0 8px 20px rgba(0,0,0,.1); width: 90%; max-width: 600px;
+      text-align: center; margin: 30px auto;
     }
-
-    img.logo {
-      width: 150px;
-      margin-bottom: 10px;
-    }
-
-    h1 {
-      color: #007b5e;
-      margin: 10px 0 5px 0;
-      font-size: 32px;
-    }
-
-    h2 {
-      color: #555;
-      margin-top: 0;
-      margin-bottom: 10px;
-      font-size: 16px;
-      font-weight: normal;
-    }
-
+    img.logo { width: 150px; margin-bottom: 10px; }
+    h1 { color: #007b5e; margin: 10px 0 5px 0; font-size: 32px; }
+    h2 { color: #555; margin: 0 0 10px 0; font-size: 16px; font-weight: normal; }
     input, button, textarea {
-      width: 80%;
-      padding: 12px;
-      font-size: 16px;
-      margin-bottom: 10px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
+      width: 80%; padding: 12px; font-size: 16px; margin-bottom: 10px;
+      border: 1px solid #ccc; border-radius: 6px;
     }
-
-    button {
-      background-color: #007b5e;
-      color: white;
-      cursor: pointer;
-    }
-
-    button:hover {
-      background-color: #005c49;
-    }
-
+    button { background-color: #007b5e; color: white; cursor: pointer; }
+    button:hover { background-color: #005c49; }
     pre {
-      margin-top: 20px;
-      text-align: left;
-      background-color: #f0f0f0;
-      padding: 15px;
-      border-radius: 6px;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      min-height: 50px;
+      margin-top: 20px; text-align: left; background-color: #f0f0f0;
+      padding: 15px; border-radius: 6px; white-space: pre-wrap; word-wrap: break-word; min-height: 50px;
     }
-
-    .file-preview img {
-      max-width: 100%;
-      margin-top: 10px;
-      border-radius: 6px;
-    }
-
-    .subtle {
-      color: #777;
-      font-size: 14px;
-      margin-top: -6px;
-      margin-bottom: 10px;
-      display: block;
-    }
+    .file-preview img { max-width: 100%; margin-top: 10px; border-radius: 6px; }
+    .subtle { color: #777; font-size: 14px; margin-top: -6px; margin-bottom: 10px; display: block; }
   </style>
 </head>
 <body>
 
-  <!-- Use case 1: Chat met Digitale Assistent + UBN -->
-  <div class="chat-box">
-    <img class="logo" src="ahv-logo.jpg" alt="AHV logo" />
-    <h1>Demo account</h1>
-    <h2>In this demo, you can ask questions about the farm, cows, or sales from the past 3 months for farms 406051 (NL), 066526303 (GB), DE010550444423 (DE), and 42213083 (FR). Please wait 30 seconds before asking a new question.</h2>
-
-    <input id="ubnInput" placeholder="Enter your UBN (farm registration number)..." />
-    <input id="userInput" placeholder="Type your question here in English, Dutch, German or French ..." />
-    <br />
-    <button onclick="sendToGPT()">Send</button>
-    <pre id="response">Answer will appear here...</pre>
+  <!-- Password gate -->
+  <div id="gate" aria-modal="true" role="dialog">
+    <div class="gate-card">
+      <h3>Beveiligde demo</h3>
+      <p>Voer het wachtwoord in om verder te gaan.</p>
+      <input id="pw" type="password" placeholder="Wachtwoord" autocomplete="current-password" />
+      <button id="enter">Ontgrendelen</button>
+      <div class="gate-error" id="gateError"></div>
+    </div>
   </div>
 
-  <!--
-  Use case 3: AHV / Foto Upload Sectie (disabled)
-  <div class="chat-box">
-    <h2>Upload a photo of the completed treatment card using your phone</h2>
+  <!-- App content (verborgen tot ontgrendeld) -->
+  <div id="app">
+    <div class="wrap">
+      <!-- Use case 1: Chat met Digitale Assistent + UBN -->
+      <div class="chat-box">
+        <img class="logo" src="ahv-logo.jpg" alt="AHV logo" />
+        <h1>Demo account</h1>
+        <h2>In this demo, you can ask questions about the farm, cows, or sales from the past 3 months for farms 406051 (NL), 066526303 (GB), DE010550444423 (DE), and 42213083 (FR). Please wait 30 seconds before asking a new question.</h2>
 
-    <input type="file" id="imageUpload" accept="image/*" />
-    <br />
-    <button onclick="uploadImage()">Verstuur</button>
-    <pre id="imageResponse">Answer will appear here...</pre>
-    <div class="file-preview" id="filePreview"></div>
+        <input id="ubnInput" placeholder="Enter your UBN (farm registration number)..." />
+        <input id="userInput" placeholder="Type your question here in English, Dutch, German or French ..." />
+        <br />
+        <button onclick="sendToGPT()">Send</button>
+        <pre id="response">Answer will appear here...</pre>
+      </div>
+
+      <!--
+      Use case 3: AHV / Foto Upload Sectie (disabled)
+      <div class="chat-box">
+        <h2>Upload a photo of the completed treatment card using your phone</h2>
+        <input type="file" id="imageUpload" accept="image/*" />
+        <br />
+        <button onclick="uploadImage()">Verstuur</button>
+        <pre id="imageResponse">Answer will appear here...</pre>
+        <div class="file-preview" id="filePreview"></div>
+      </div>
+      -->
+    </div>
   </div>
-  -->
 
   <script>
+    // ====== Soft password gate (client-side) ======
+    // SHA-256 van "AHVDemo123!"
+    const PASS_HASH = "234f1d8746bbd3d0b3a236243b96f8c353c7625c4af41f3d86aac4f239a7e2d0";
+
+    async function sha256Hex(str) {
+      const buf = new TextEncoder().encode(str);
+      const hash = await crypto.subtle.digest("SHA-256", buf);
+      return [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2, "0")).join("");
+    }
+
+    async function unlock() {
+      const pw = document.getElementById("pw").value || "";
+      const err = document.getElementById("gateError");
+      const hex = await sha256Hex(pw);
+      if (hex === PASS_HASH) {
+        document.getElementById("gate").style.display = "none";
+        document.getElementById("app").style.display = "block";
+      } else {
+        err.textContent = "Onjuist wachtwoord.";
+      }
+    }
+
+    document.getElementById("enter").addEventListener("click", unlock);
+    document.getElementById("pw").addEventListener("keydown", e => {
+      if (e.key === "Enter") unlock();
+    });
+
+    // ====== Bestaande app-code ======
     const companyName = "TestAccount";
     const companyDescription = document.querySelector('meta[name="company-description"]').content;
 
@@ -229,4 +243,3 @@
   </script>
 </body>
 </html>
-
