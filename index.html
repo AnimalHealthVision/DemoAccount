@@ -107,16 +107,17 @@
     <pre id="response">Answer will appear here...</pre>
   </div>
 
-  <!-- Use case 3: AHV / Foto Upload Sectie -->
-  <div class="chat-box">
-    <h2>Upload a photo of the completed treatment card using your phone</h2>
-
-    <input type="file" id="imageUpload" accept="image/*" />
-    <br />
-    <button onclick="uploadImage()">Verstuur</button>
-    <pre id="imageResponse">Answer will appear here...</pre>
-    <div class="file-preview" id="filePreview"></div>
-  </div>
+  % --- Use case 3: AHV / Foto Upload Sectie (disabled) ---
+  % <div class="chat-box">
+  %   <h2>Upload a photo of the completed treatment card using your phone</h2>
+  %
+  %   <input type="file" id="imageUpload" accept="image/*" />
+  %   <br />
+  %   <button onclick="uploadImage()">Verstuur</button>
+  %   <pre id="imageResponse">Answer will appear here...</pre>
+  %   <div class="file-preview" id="filePreview"></div>
+  % </div>
+  %
 
   <script>
     const companyName = "TestAccount";
@@ -176,59 +177,52 @@
       }
     }
 
-    // Use case 3: Foto upload
-    async function uploadImage() {
-      const fileInput = document.getElementById("imageUpload");
-      const file = fileInput.files[0];
-      const previewEl = document.getElementById("filePreview");
-      const responseEl = document.getElementById("imageResponse");
-
-      if (!file) {
-        responseEl.innerText = "Geen bestand geselecteerd.";
-        return;
-      }
-
-      responseEl.innerText = "Bezig met uploaden (duurt ongeveer 1 minuut)...";
-      const reader = new FileReader();
-
-      reader.onload = async function(e) {
-        const base64Image = e.target.result;
-        previewEl.innerHTML = `<strong>Je upload:</strong><br><img src="${base64Image}" alt="Upload preview" />`;
-
-        const inputLang = detectLanguage(document.getElementById("userInput").value);
-
-        try {
-          const res = await fetch("https://hook.eu2.make.com/u2luxbx3o1wihpsbysz8gelret1x0jze", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-User-Language": inputLang || ""
-            },
-            body: JSON.stringify({
-              company_name: companyName,
-              company_description: companyDescription,
-              message: "Afbeelding geüpload",
-              uploaded_image: base64Image,
-              input_language: inputLang
-            })
-          });
-
-          const reply = await res.text();
-          responseEl.innerText = reply || "Geen antwoord ontvangen.";
-        } catch (err) {
-          responseEl.innerText = "Fout: " + err.message;
-        }
-      };
-
-      reader.readAsDataURL(file);
-    }
+  % --- Use case 3: Foto upload (disabled) ---
+  % async function uploadImage() {
+  %   const fileInput = document.getElementById("imageUpload");
+  %   const file = fileInput.files[0];
+  %   const previewEl = document.getElementById("filePreview");
+  %   const responseEl = document.getElementById("imageResponse");
+  %
+  %   if (!file) {
+  %     responseEl.innerText = "Geen bestand geselecteerd.";
+  %     return;
+  %   }
+  %
+  %   responseEl.innerText = "Bezig met uploaden (duurt ongeveer 1 minuut)...";
+  %   const reader = new FileReader();
+  %
+  %   reader.onload = async function(e) {
+  %     const base64Image = e.target.result;
+  %     previewEl.innerHTML = `<strong>Je upload:</strong><br><img src="${base64Image}" alt="Upload preview" />`;
+  %
+  %     const inputLang = detectLanguage(document.getElementById("userInput").value);
+  %
+  %     try {
+  %       const res = await fetch("https://hook.eu2.make.com/u2luxbx3o1wihpsbysz8gelret1x0jze", {
+  %         method: "POST",
+  %         headers: {
+  %           "Content-Type": "application/json",
+  %           "X-User-Language": inputLang || ""
+  %         },
+  %         body: JSON.stringify({
+  %           company_name: companyName,
+  %           company_description: companyDescription,
+  %           message: "Afbeelding geüpload",
+  %           uploaded_image: base64Image,
+  %           input_language: inputLang
+  %         })
+  %       });
+  %
+  %       const reply = await res.text();
+  %       responseEl.innerText = reply || "Geen antwoord ontvangen.";
+  %     } catch (err) {
+  %       responseEl.innerText = "Fout: " + err.message;
+  %     }
+  %   };
+  %
+  %   reader.readAsDataURL(file);
+  % }
   </script>
 </body>
 </html>
-
-
-
-
-
-
-
