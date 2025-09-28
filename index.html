@@ -24,18 +24,29 @@
     h1{ color:#007b5e; margin:10px 0 5px 0; font-size:32px; }
     h2{ color:#555; margin:0 0 10px 0; font-size:16px; font-weight:normal; }
 
-    /* Controls */
-    input, button, select{ width:80%; padding:12px; font-size:16px; margin-bottom:10px; border:1px solid #ccc; border-radius:6px; }
+    /* Unified control sizing */
+    .field-wrap { width:80%; margin:0 auto 10px; }
+    .field-wrap input,
+    .field-wrap button,
+    .field-wrap select {
+      width:100%;
+      padding:12px;
+      font-size:16px;
+      border:1px solid #ccc;
+      border-radius:6px;
+      box-sizing:border-box;
+    }
     button{ background-color:#007b5e; color:#fff; cursor:pointer; }
     button:hover{ background-color:#005c49; }
 
-    /* Align the checkbox row to the same width & center as inputs */
-    .row{ display:flex; align-items:center; gap:10px; justify-content:flex-start; }
-    .control{ width:80%; margin:4px auto 6px; text-align:left; }  /* NEW: matches input/select width and centers */
-    .row label{ font-size:14px; color:#555; user-select:none; }
-    .row input[type="checkbox"]{ width:auto; margin:0; }
+    /* Checkbox row aligned with inputs */
+    .control-row { width:80%; margin:4px auto 6px; display:flex; align-items:center; gap:10px; text-align:left; }
+    .control-row input[type="checkbox"]{ width:auto; margin:0; }
+    .control-row label{ font-size:14px; color:#555; user-select:none; }
 
-    #presetSelect{ display:none; }
+    /* Hide select until toggled */
+    #presetSelect { display:none; }
+
     pre{ margin-top:20px; text-align:left; background:#f0f0f0; padding:15px; border-radius:6px; white-space:pre-wrap; word-wrap:break-word; min-height:50px; }
   </style>
 </head>
@@ -44,7 +55,7 @@
   <!-- Password gate -->
   <div id="gate" aria-modal="true" role="dialog">
     <div class="gate-card">
-      <h3>AHV secure demo</h3>
+      <h3>Secure demo</h3>
       <p>Enter the password to continue.</p>
       <input id="pw" type="password" placeholder="Password" autocomplete="current-password" />
       <button id="enter">Unlock</button>
@@ -60,33 +71,42 @@
         <h1>Demo account</h1>
         <h2>In this demo, you can ask questions about the farm, cows, or sales from the past 12 months for farms 406051 (NL), 066526303 (GB), DE010550444423 (DE), and 42213083 (FR).</h2>
 
-        <input id="ubnInput" placeholder="Enter your UBN (farm registration number)..." />
+        <div class="field-wrap">
+          <input id="ubnInput" placeholder="Enter your UBN (farm registration number)..." />
+        </div>
 
         <!-- Free text -->
-        <input id="userInput" placeholder="Type your question here in English, Dutch, German or French ..." />
+        <div class="field-wrap">
+          <input id="userInput" placeholder="Type your question here in English, Dutch, German or French ..." />
+        </div>
 
-        <!-- Checkbox row, now width-aligned with inputs -->
-        <div class="row control">
+        <!-- Checkbox row aligned to same width -->
+        <div class="control-row">
           <input type="checkbox" id="togglePresets" />
           <label for="togglePresets">Show suggested questions</label>
         </div>
 
-        <!-- Updated preset dropdown -->
-        <select id="presetSelect" aria-label="Suggested questions">
-          <option value="">— Choose a preset question —</option>
-          <option>Analyze the last 12 months of orders and herd data; identify missing product families and cross-sell or upsell opportunities.</option>
-          <option>Using last order date and revenue trends, estimate the chance of a new sale if I visit this month.</option>
-          <option>From the latest MPR, what % of cows expected to dry off in the next 30 days are producing over 20 kg and over 25 kg milk?</option>
-          <option>For cows ≤60 DIM in the latest MPR, what % have FPR ≥1.40 at first and second milk recording?</option>
-          <option>Show the herd’s average milk yield curve from calving to 100 DIM using the last 12 months of MPR data and note any >30% drops.</option>
-          <option>In the latest MPR, how many cows have SCC >200k (heifers >100k)? Indicate chronic vs good-prognosis animals.</option>
-          <option>Compare SCC before dry-off and first SCC after calving for cows dried off in the last 6 months; summarize udder health changes.</option>
-          <option>For cows ≤100 DIM in the latest MPR, compare milk yield vs expected, flag ketosis risk and FPR ≥1.40, and mark ≥30% milk drops.</option>
-          <option>How many cows are due to dry off in the next 3 months and what is their current milk yield?</option>
-          <option>Create three lists from the latest MPR: metabolic risk, active udder protocol need (DIM 7–100 & SCC ≥100k), and dry-off risk (milk >20kg and/or SCC >200k within 30 days).</option>
-        </select>
+        <!-- Preset dropdown wrapped to same width -->
+        <div class="field-wrap">
+          <select id="presetSelect" aria-label="Suggested questions">
+            <option value="">— Choose a preset question —</option>
+            <option>Analyze the last 12 months of orders and herd data; identify missing product families and cross-sell or upsell opportunities.</option>
+            <option>Using last order date and revenue trends, estimate the chance of a new sale if I visit this month.</option>
+            <option>From the latest MPR, what % of cows expected to dry off in the next 30 days are producing over 20 kg and over 25 kg milk?</option>
+            <option>For cows ≤60 DIM in the latest MPR, what % have FPR ≥1.40 at first and second milk recording?</option>
+            <option>Show the herd’s average milk yield curve from calving to 100 DIM using the last 12 months of MPR data and note any >30% drops.</option>
+            <option>In the latest MPR, how many cows have SCC >200k (heifers >100k)? Indicate chronic vs good-prognosis animals.</option>
+            <option>Compare SCC before dry-off and first SCC after calving for cows dried off in the last 6 months; summarize udder health changes.</option>
+            <option>For cows ≤100 DIM in the latest MPR, compare milk yield vs expected, flag ketosis risk and FPR ≥1.40, and mark ≥30% milk drops.</option>
+            <option>How many cows are due to dry off in the next 3 months and what is their current milk yield?</option>
+            <option>Create three lists from the latest MPR: metabolic risk, active udder protocol need (DIM 7–100 & SCC ≥100k), and dry-off risk (milk >20kg and/or SCC >200k within 30 days).</option>
+          </select>
+        </div>
 
-        <button onclick="sendToGPT()">Send</button>
+        <div class="field-wrap">
+          <button onclick="sendToGPT()">Send</button>
+        </div>
+
         <pre id="response">Answer will appear here...</pre>
       </div>
 
@@ -197,4 +217,3 @@
   </script>
 </body>
 </html>
-
