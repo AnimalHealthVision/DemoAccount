@@ -57,8 +57,10 @@
     <div class="gate-card">
       <h3>AHV secure demo</h3>
       <p>Enter the password to continue.</p>
-      <input id="pw" type="password" placeholder="Password" autocomplete="current-password" />
-      <button id="enter">Unlock</button>
+      <div style="display:flex; gap:8px;">
+      <input id="pw" type="password" placeholder="Password" autocomplete="current-password" style="flex:1;" />
+      <button id="enter" style="white-space:nowrap;">Unlock</button>
+      </div>
       <div class="gate-error" id="gateError"></div>
     </div>
   </div>
@@ -217,4 +219,5 @@
   </script>
 </body>
 </html>
+
 
