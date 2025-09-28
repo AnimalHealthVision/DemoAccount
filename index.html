@@ -49,18 +49,21 @@
     img.logo { width: 150px; margin-bottom: 10px; }
     h1 { color: #007b5e; margin: 10px 0 5px 0; font-size: 32px; }
     h2 { color: #555; margin: 0 0 10px 0; font-size: 16px; font-weight: normal; }
-    input, button, textarea {
+    input, button, textarea, select {
       width: 80%; padding: 12px; font-size: 16px; margin-bottom: 10px;
       border: 1px solid #ccc; border-radius: 6px;
     }
     button { background-color: #007b5e; color: white; cursor: pointer; }
     button:hover { background-color: #005c49; }
+    .inline-btn { width: auto; margin-left: 8px; padding: 12px 16px; }
     pre {
       margin-top: 20px; text-align: left; background-color: #f0f0f0;
       padding: 15px; border-radius: 6px; white-space: pre-wrap; word-wrap: break-word; min-height: 50px;
     }
     .file-preview img { max-width: 100%; margin-top: 10px; border-radius: 6px; }
     .subtle { color: #777; font-size: 14px; margin-top: -6px; margin-bottom: 10px; display: block; }
+    .preset-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .preset-row select { flex: 1; width: 80%; }
   </style>
 </head>
 <body>
@@ -86,6 +89,31 @@
         <h2>In this demo, you can ask questions about the farm, cows, or sales from the past 12 months for farms 406051 (NL), 066526303 (GB), DE010550444423 (DE), and 42213083 (FR).</h2>
 
         <input id="ubnInput" placeholder="Enter your UBN (farm registration number)..." />
+
+        <!-- NEW: Preset dropdown (5 questions) -->
+        <div class="preset-row">
+          <select id="presetSelect" aria-label="Choose a preset question">
+            <option value="">— Choose a preset question —</option>
+            <option>
+              Do you have the top 5 questions that you normally ask
+            </option>
+            <option>
+              List of cows with risk of metabolic issues
+            </option>
+            <option>
+              List of cows that need an active udder protocol (0-100 DIM)
+            </option>
+            <option>
+              List of cows that need a close look for udder health, eventually AHV protocol
+            </option>
+            <option>
+              Milk yield at dry off for the next month, and Udder score risk (to be determined)
+            </option>
+          </select>
+          <button class="inline-btn" id="askPresetBtn" title="Ask selected">Ask</button>
+        </div>
+        <span class="subtle">Pick a preset or type your own question below.</span>
+
         <input id="userInput" placeholder="Type your question here in English, Dutch, German or French ..." />
         <br />
         <button onclick="sendToGPT()">Send</button>
@@ -158,9 +186,28 @@
       return "nl"; // default fallback
     }
 
+    // NEW: Preset selection handlers
+    const presetSelect = document.getElementById("presetSelect");
+    const askPresetBtn = document.getElementById("askPresetBtn");
+    const userInputEl = document.getElementById("userInput");
+
+    // Fill the free-text box when the dropdown changes
+    presetSelect.addEventListener("change", () => {
+      const val = presetSelect.value.trim();
+      if (val) userInputEl.value = val;
+    });
+
+    // Send immediately using the selected preset
+    askPresetBtn.addEventListener("click", () => {
+      const val = presetSelect.value.trim();
+      if (!val) return; // nothing selected
+      userInputEl.value = val;
+      sendToGPT();
+    });
+
     // Use case 1: Chat functie
     async function sendToGPT() {
-      const input = document.getElementById("userInput").value.trim();
+      const input = userInputEl.value.trim();
       const ubn = document.getElementById("ubnInput").value.trim();
       const responseEl = document.getElementById("response");
       responseEl.innerText = "Thinking… answer will appear in 30 seconds.";
@@ -191,58 +238,6 @@
         responseEl.innerText = "Fout: " + err.message;
       }
     }
-
-    /*
-    // Use case 3: Foto upload (disabled)
-    async function uploadImage() {
-      const fileInput = document.getElementById("imageUpload");
-      const file = fileInput.files[0];
-      const previewEl = document.getElementById("filePreview");
-      const responseEl = document.getElementById("imageResponse");
-
-      if (!file) {
-        responseEl.innerText = "Geen bestand geselecteerd.";
-        return;
-      }
-
-      responseEl.innerText = "Bezig met uploaden (duurt ongeveer 1 minuut)...";
-      const reader = new FileReader();
-
-      reader.onload = async function(e) {
-        const base64Image = e.target.result;
-        previewEl.innerHTML = `<strong>Je upload:</strong><br><img src="${base64Image}" alt="Upload preview" />`;
-
-        const inputLang = detectLanguage(document.getElementById("userInput").value);
-
-        try {
-          const res = await fetch("https://hook.eu2.make.com/u2luxbx3o1wihpsbysz8gelret1x0jze", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-User-Language": inputLang || ""
-            },
-            body: JSON.stringify({
-              company_name: companyName,
-              company_description: companyDescription,
-              message: "Afbeelding geüpload",
-              uploaded_image: base64Image,
-              input_language: inputLang
-            })
-          });
-
-          const reply = await res.text();
-          responseEl.innerText = reply || "Geen antwoord ontvangen.";
-        } catch (err) {
-          responseEl.innerText = "Fout: " + err.message;
-        }
-      };
-
-      reader.readAsDataURL(file);
-    }
-    */
   </script>
 </body>
 </html>
-
-
-
