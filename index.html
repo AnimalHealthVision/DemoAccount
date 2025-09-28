@@ -23,12 +23,18 @@
     img.logo{ width:150px; margin-bottom:10px; }
     h1{ color:#007b5e; margin:10px 0 5px 0; font-size:32px; }
     h2{ color:#555; margin:0 0 10px 0; font-size:16px; font-weight:normal; }
+
+    /* Controls */
     input, button, select{ width:80%; padding:12px; font-size:16px; margin-bottom:10px; border:1px solid #ccc; border-radius:6px; }
     button{ background-color:#007b5e; color:#fff; cursor:pointer; }
     button:hover{ background-color:#005c49; }
-    .row { display:flex; align-items:center; justify-content:center; gap:10px; }
+
+    /* Align the checkbox row to the same width & center as inputs */
+    .row{ display:flex; align-items:center; gap:10px; justify-content:flex-start; }
+    .control{ width:80%; margin:4px auto 6px; text-align:left; }  /* NEW: matches input/select width and centers */
     .row label{ font-size:14px; color:#555; user-select:none; }
     .row input[type="checkbox"]{ width:auto; margin:0; }
+
     #presetSelect{ display:none; }
     pre{ margin-top:20px; text-align:left; background:#f0f0f0; padding:15px; border-radius:6px; white-space:pre-wrap; word-wrap:break-word; min-height:50px; }
   </style>
@@ -59,8 +65,8 @@
         <!-- Free text -->
         <input id="userInput" placeholder="Type your question here in English, Dutch, German or French ..." />
 
-        <!-- Checkbox to show presets -->
-        <div class="row" style="margin:4px 0 2px;">
+        <!-- Checkbox row, now width-aligned with inputs -->
+        <div class="row control">
           <input type="checkbox" id="togglePresets" />
           <label for="togglePresets">Show suggested questions</label>
         </div>
