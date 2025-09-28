@@ -5,65 +5,35 @@
   <title>Demo account</title>
   <meta name="company-description" content="Always respond in the same language as was written.">
   <style>
-    body {
-      background-color: #f9f9f9;
-      font-family: Arial, sans-serif;
-      height: 100vh; margin: 0;
-    }
-    /* Soft gate styles */
-    #gate {
-      position: fixed; inset: 0; background: #0b172033;
-      display: flex; align-items: center; justify-content: center; z-index: 9999;
-      backdrop-filter: blur(6px);
-    }
-    .gate-card {
-      background: #fff; width: 90%; max-width: 420px; padding: 24px;
-      border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.15); text-align: center;
-    }
-    .gate-card h3 { margin: 0 0 8px; color: #007b5e; }
-    .gate-card p { margin: 0 0 16px; color: #555; }
-    .gate-card input[type="password"] {
-      width: 100%; padding: 12px; font-size: 16px;
-      border: 1px solid #ccc; border-radius: 8px; margin-bottom: 12px;
-    }
-    .gate-card button {
-      width: 100%; padding: 12px; font-size: 16px; border: none;
-      border-radius: 8px; background: #007b5e; color: #fff; cursor: pointer;
-    }
-    .gate-card button:hover { background: #005c49; }
-    .gate-error { color: #c02727; min-height: 22px; margin-top: 8px; font-size: 14px; }
+    body { background-color:#f9f9f9; font-family:Arial,sans-serif; height:100vh; margin:0; }
 
-    /* App layout (onzichtbaar totdat unlocked) */
-    #app { display: none; }
+    /* Soft gate */
+    #gate { position:fixed; inset:0; background:#0b172033; display:flex; align-items:center; justify-content:center; z-index:9999; backdrop-filter:blur(6px); }
+    .gate-card { background:#fff; width:90%; max-width:420px; padding:24px; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,.15); text-align:center; }
+    .gate-card h3 { margin:0 0 8px; color:#007b5e; }
+    .gate-card p { margin:0 0 16px; color:#555; }
+    .gate-card input[type="password"]{ width:100%; padding:12px; font-size:16px; border:1px solid #ccc; border-radius:8px; margin-bottom:12px; }
+    .gate-card button{ width:100%; padding:12px; font-size:16px; border:none; border-radius:8px; background:#007b5e; color:#fff; cursor:pointer; }
+    .gate-card button:hover{ background:#005c49; }
+    .gate-error{ color:#c02727; min-height:22px; margin-top:8px; font-size:14px; }
 
-    /* Original app styles */
-    .wrap {
-      display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
-      padding-top: 30px;
-    }
-    .chat-box {
-      background: white; padding: 30px; border-radius: 12px;
-      box-shadow: 0 8px 20px rgba(0,0,0,.1); width: 90%; max-width: 600px;
-      text-align: center; margin: 30px auto;
-    }
-    img.logo { width: 150px; margin-bottom: 10px; }
-    h1 { color: #007b5e; margin: 10px 0 5px 0; font-size: 32px; }
-    h2 { color: #555; margin: 0 0 10px 0; font-size: 16px; font-weight: normal; }
-    input, button, textarea, select {
-      width: 80%; padding: 12px; font-size: 16px; margin-bottom: 10px;
-      border: 1px solid #ccc; border-radius: 6px;
-    }
-    button { background-color: #007b5e; color: white; cursor: pointer; }
-    button:hover { background-color: #005c49; }
-    .inline-btn { width: auto; margin-left: 8px; padding: 12px 16px; }
-    pre {
-      margin-top: 20px; text-align: left; background-color: #f0f0f0;
-      padding: 15px; border-radius: 6px; white-space: pre-wrap; word-wrap: break-word; min-height: 50px;
-    }
-    .file-preview img { max-width: 100%; margin-top: 10px; border-radius: 6px; }
-    .subtle { color: #777; font-size: 14px; margin-top: -6px; margin-bottom: 10px; display: block; }
-    .preset-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
-    .preset-row select { flex: 1; width: 80%; }
+    #app{ display:none; }
+
+    /* App */
+    .wrap{ display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding-top:30px; }
+    .chat-box{ background:#fff; padding:30px; border-radius:12px; box-shadow:0 8px 20px rgba(0,0,0,.1); width:90%; max-width:600px; text-align:center; margin:30px auto; }
+    img.logo{ width:150px; margin-bottom:10px; }
+    h1{ color:#007b5e; margin:10px 0 5px 0; font-size:32px; }
+    h2{ color:#555; margin:0 0 10px 0; font-size:16px; font-weight:normal; }
+    input, button, select{ width:80%; padding:12px; font-size:16px; margin-bottom:10px; border:1px solid #ccc; border-radius:6px; }
+    button{ background-color:#007b5e; color:#fff; cursor:pointer; }
+    button:hover{ background-color:#005c49; }
+    .row { display:flex; align-items:center; justify-content:center; gap:10px; }
+    .row label{ font-size:14px; color:#555; user-select:none; }
+    .row input[type="checkbox"]{ width:auto; margin:0; }
+    #presetSelect{ display:none; } /* hidden until checkbox checked */
+    .subtle{ color:#777; font-size:14px; margin-top:-6px; margin-bottom:10px; display:block; }
+    pre{ margin-top:20px; text-align:left; background:#f0f0f0; padding:15px; border-radius:6px; white-space:pre-wrap; word-wrap:break-word; min-height:50px; }
   </style>
 </head>
 <body>
@@ -79,10 +49,9 @@
     </div>
   </div>
 
-  <!-- App content (verborgen tot ontgrendeld) -->
+  <!-- App -->
   <div id="app">
     <div class="wrap">
-      <!-- Use case 1: Chat met Digitale Assistent + UBN -->
       <div class="chat-box">
         <img class="logo" src="ahv-logo.jpg" alt="AHV logo" />
         <h1>Demo account</h1>
@@ -90,54 +59,35 @@
 
         <input id="ubnInput" placeholder="Enter your UBN (farm registration number)..." />
 
-        <!-- NEW: Preset dropdown (5 questions) -->
-        <div class="preset-row">
-          <select id="presetSelect" aria-label="Choose a preset question">
-            <option value="">— Choose a preset question —</option>
-            <option>
-              Do you have the top 5 questions that you normally ask
-            </option>
-            <option>
-              List of cows with risk of metabolic issues
-            </option>
-            <option>
-              List of cows that need an active udder protocol (0-100 DIM)
-            </option>
-            <option>
-              List of cows that need a close look for udder health, eventually AHV protocol
-            </option>
-            <option>
-              Milk yield at dry off for the next month, and Udder score risk (to be determined)
-            </option>
-          </select>
-          <button class="inline-btn" id="askPresetBtn" title="Ask selected">Ask</button>
-        </div>
-        <span class="subtle">Pick a preset or type your own question below.</span>
-
+        <!-- Free-text first -->
         <input id="userInput" placeholder="Type your question here in English, Dutch, German or French ..." />
-        <br />
+
+        <!-- Checkbox to reveal suggestions -->
+        <div class="row" style="margin:4px 0 2px;">
+          <input type="checkbox" id="togglePresets" />
+          <label for="togglePresets">Show suggested questions</label>
+        </div>
+
+        <!-- Preset dropdown (hidden until checkbox is ticked) -->
+        <select id="presetSelect" aria-label="Suggested questions">
+          <option value="">— Choose a preset question —</option>
+          <option>Do you have the top 5 questions that you normally ask</option>
+          <option>List of cows with risk of metabolic issues</option>
+          <option>List of cows that need an active udder protocol (0-100 DIM)</option>
+          <option>List of cows that need a close look for udder health, eventually AHV protocol</option>
+          <option>Milk yield at dry off for the next month, and Udder score risk (to be determined)</option>
+        </select>
+        <span class="subtle">Tick the box to show presets, or just type your own question.</span>
+
         <button onclick="sendToGPT()">Send</button>
         <pre id="response">Answer will appear here...</pre>
       </div>
-
-      <!--
-      Use case 3: AHV / Foto Upload Sectie (disabled)
-      <div class="chat-box">
-        <h2>Upload a photo of the completed treatment card using your phone</h2>
-        <input type="file" id="imageUpload" accept="image/*" />
-        <br />
-        <button onclick="uploadImage()">Verstuur</button>
-        <pre id="imageResponse">Answer will appear here...</pre>
-        <div class="file-preview" id="filePreview"></div>
-      </div>
-      -->
     </div>
   </div>
 
   <script>
-    // ====== Soft password gate (client-side) ======
-    // SHA-256 van "AHVDemo123!"
-    const PASS_HASH = "234f1d8746bbd3d0b3a236243b96f8c353c7625c4af41f3d86aac4f239a7e2d0";
+    // ====== Soft password gate ======
+    const PASS_HASH = "234f1d8746bbd3d0b3a236243b96f8c353c7625c4af41f3d86aac4f239a7e2d0"; // SHA-256 of "AHVDemo123!"
 
     async function sha256Hex(str) {
       const buf = new TextEncoder().encode(str);
@@ -152,66 +102,58 @@
       if (hex === PASS_HASH) {
         document.getElementById("gate").style.display = "none";
         document.getElementById("app").style.display = "block";
+        // focus the question field first
+        setTimeout(() => document.getElementById("userInput").focus(), 0);
       } else {
         err.textContent = "Onjuist wachtwoord.";
       }
     }
-
     document.getElementById("enter").addEventListener("click", unlock);
-    document.getElementById("pw").addEventListener("keydown", e => {
-      if (e.key === "Enter") unlock();
-    });
+    document.getElementById("pw").addEventListener("keydown", e => { if (e.key === "Enter") unlock(); });
 
-    // ====== Bestaande app-code ======
+    // ====== Existing app code ======
     const companyName = "TestAccount";
     const companyDescription = document.querySelector('meta[name="company-description"]').content;
 
-    // --- Simple client-side language detector ---
+    // Language detector
     function detectLanguage(text) {
       const t = (text || "").trim().toLowerCase();
       if (!t) return null;
-
-      const nl = /\b(hoe|waarom|wanneer|welke|met|en|de|het|een|koe|uier|celgetal|omzet|factuur)\b/;
-      const fr = /\b(quoi|pourquoi|quand|le|la|les|des|vache|mamelle|cellules|facture|chiffre)\b/;
-      const de = /\b(was|warum|wann|welche|und|die|der|das|kuh|euter|zellen|rechnung|umsatz)\b/;
-      const en = /\b(what|why|when|which|and|the|cow|udder|cells|invoice|revenue)\b/;
-
+      const nl=/\b(hoe|waarom|wanneer|welke|met|en|de|het|een|koe|uier|celgetal|omzet|factuur)\b/;
+      const fr=/\b(quoi|pourquoi|quand|le|la|les|des|vache|mamelle|cellules|facture|chiffre)\b/;
+      const de=/\b(was|warum|wann|welche|und|die|der|das|kuh|euter|zellen|rechnung|umsatz)\b/;
+      const en=/\b(what|why|when|which|and|the|cow|udder|cells|invoice|revenue)\b/;
       if (nl.test(t)) return "nl";
       if (fr.test(t)) return "fr";
       if (de.test(t)) return "de";
       if (en.test(t)) return "en";
-
-      const nav = (navigator.language || navigator.userLanguage || "nl").slice(0,2);
+      const nav=(navigator.language||navigator.userLanguage||"nl").slice(0,2);
       if (["nl","en","fr","de"].includes(nav)) return nav;
-      return "nl"; // default fallback
+      return "nl";
     }
 
-    // NEW: Preset selection handlers
-    const presetSelect = document.getElementById("presetSelect");
-    const askPresetBtn = document.getElementById("askPresetBtn");
-    const userInputEl = document.getElementById("userInput");
+    // Preset toggle + autofill
+    const togglePresets = document.getElementById("togglePresets");
+    const presetSelect  = document.getElementById("presetSelect");
+    const userInputEl   = document.getElementById("userInput");
 
-    // Fill the free-text box when the dropdown changes
+    togglePresets.addEventListener("change", () => {
+      presetSelect.style.display = togglePresets.checked ? "block" : "none";
+      if (!togglePresets.checked) presetSelect.value = "";
+    });
+
     presetSelect.addEventListener("change", () => {
-      const val = presetSelect.value.trim();
-      if (val) userInputEl.value = val;
+      const v = presetSelect.value.trim();
+      if (v) userInputEl.value = v;
+      userInputEl.focus();
     });
 
-    // Send immediately using the selected preset
-    askPresetBtn.addEventListener("click", () => {
-      const val = presetSelect.value.trim();
-      if (!val) return; // nothing selected
-      userInputEl.value = val;
-      sendToGPT();
-    });
-
-    // Use case 1: Chat functie
+    // Chat function
     async function sendToGPT() {
       const input = userInputEl.value.trim();
       const ubn = document.getElementById("ubnInput").value.trim();
       const responseEl = document.getElementById("response");
       responseEl.innerText = "Thinking… answer will appear in 30 seconds.";
-
       const inputLang = detectLanguage(input);
 
       try {
