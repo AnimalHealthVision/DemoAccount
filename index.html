@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <title>Demo account</title>
@@ -7,7 +7,6 @@
   <style>
     body { background-color:#f9f9f9; font-family:Arial,sans-serif; height:100vh; margin:0; }
 
-    /* Soft gate */
     #gate { position:fixed; inset:0; background:#0b172033; display:flex; align-items:center; justify-content:center; z-index:9999; backdrop-filter:blur(6px); }
     .gate-card { background:#fff; width:90%; max-width:420px; padding:24px; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,.15); text-align:center; }
     .gate-card h3 { margin:0 0 8px; color:#007b5e; }
@@ -19,7 +18,6 @@
 
     #app{ display:none; }
 
-    /* App */
     .wrap{ display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding-top:30px; }
     .chat-box{ background:#fff; padding:30px; border-radius:12px; box-shadow:0 8px 20px rgba(0,0,0,.1); width:90%; max-width:600px; text-align:center; margin:30px auto; }
     img.logo{ width:150px; margin-bottom:10px; }
@@ -31,8 +29,7 @@
     .row { display:flex; align-items:center; justify-content:center; gap:10px; }
     .row label{ font-size:14px; color:#555; user-select:none; }
     .row input[type="checkbox"]{ width:auto; margin:0; }
-    #presetSelect{ display:none; } /* hidden until checkbox checked */
-    .subtle{ color:#777; font-size:14px; margin-top:-6px; margin-bottom:10px; display:block; }
+    #presetSelect{ display:none; }
     pre{ margin-top:20px; text-align:left; background:#f0f0f0; padding:15px; border-radius:6px; white-space:pre-wrap; word-wrap:break-word; min-height:50px; }
   </style>
 </head>
@@ -41,10 +38,10 @@
   <!-- Password gate -->
   <div id="gate" aria-modal="true" role="dialog">
     <div class="gate-card">
-      <h3>Beveiligde demo</h3>
-      <p>Voer het wachtwoord in om verder te gaan.</p>
-      <input id="pw" type="password" placeholder="Wachtwoord" autocomplete="current-password" />
-      <button id="enter">Ontgrendelen</button>
+      <h3>Secure demo</h3>
+      <p>Enter the password to continue.</p>
+      <input id="pw" type="password" placeholder="Password" autocomplete="current-password" />
+      <button id="enter">Unlock</button>
       <div class="gate-error" id="gateError"></div>
     </div>
   </div>
@@ -59,34 +56,50 @@
 
         <input id="ubnInput" placeholder="Enter your UBN (farm registration number)..." />
 
-        <!-- Free-text first -->
+        <!-- Free text -->
         <input id="userInput" placeholder="Type your question here in English, Dutch, German or French ..." />
 
-        <!-- Checkbox to reveal suggestions -->
+        <!-- Checkbox to show presets -->
         <div class="row" style="margin:4px 0 2px;">
           <input type="checkbox" id="togglePresets" />
           <label for="togglePresets">Show suggested questions</label>
         </div>
 
-        <!-- Preset dropdown (hidden until checkbox is ticked) -->
+        <!-- Updated preset dropdown -->
         <select id="presetSelect" aria-label="Suggested questions">
           <option value="">— Choose a preset question —</option>
-          <option>Do you have the top 5 questions that you normally ask</option>
-          <option>List of cows with risk of metabolic issues</option>
-          <option>List of cows that need an active udder protocol (0-100 DIM)</option>
-          <option>List of cows that need a close look for udder health, eventually AHV protocol</option>
-          <option>Milk yield at dry off for the next month, and Udder score risk (to be determined)</option>
+          <option>Analyze the last 12 months of orders and herd data; identify missing product families and cross-sell or upsell opportunities.</option>
+          <option>Using last order date and revenue trends, estimate the chance of a new sale if I visit this month.</option>
+          <option>From the latest MPR, what % of cows expected to dry off in the next 30 days are producing over 20 kg and over 25 kg milk?</option>
+          <option>For cows ≤60 DIM in the latest MPR, what % have FPR ≥1.40 at first and second milk recording?</option>
+          <option>Show the herd’s average milk yield curve from calving to 100 DIM using the last 12 months of MPR data and note any >30% drops.</option>
+          <option>In the latest MPR, how many cows have SCC >200k (heifers >100k)? Indicate chronic vs good-prognosis animals.</option>
+          <option>Compare SCC before dry-off and first SCC after calving for cows dried off in the last 6 months; summarize udder health changes.</option>
+          <option>For cows ≤100 DIM in the latest MPR, compare milk yield vs expected, flag ketosis risk and FPR ≥1.40, and mark ≥30% milk drops.</option>
+          <option>How many cows are due to dry off in the next 3 months and what is their current milk yield?</option>
+          <option>Create three lists from the latest MPR: metabolic risk, active udder protocol need (DIM 7–100 & SCC ≥100k), and dry-off risk (milk >20kg and/or SCC >200k within 30 days).</option>
         </select>
-        <span class="subtle">Tick the box to show presets, or just type your own question.</span>
 
         <button onclick="sendToGPT()">Send</button>
         <pre id="response">Answer will appear here...</pre>
       </div>
+
+      <!--
+      Use case 3: AHV / Photo Upload Section (disabled for now)
+      <div class="chat-box" style="opacity:0.4; pointer-events:none;">
+        <h2>Upload a photo of the completed treatment card using your phone</h2>
+        <input type="file" id="imageUpload" accept="image/*" />
+        <br />
+        <button onclick="uploadImage()">Send</button>
+        <pre id="imageResponse">Answer will appear here...</pre>
+        <div class="file-preview" id="filePreview"></div>
+      </div>
+      -->
+
     </div>
   </div>
 
   <script>
-    // ====== Soft password gate ======
     const PASS_HASH = "234f1d8746bbd3d0b3a236243b96f8c353c7625c4af41f3d86aac4f239a7e2d0"; // SHA-256 of "AHVDemo123!"
 
     async function sha256Hex(str) {
@@ -102,20 +115,17 @@
       if (hex === PASS_HASH) {
         document.getElementById("gate").style.display = "none";
         document.getElementById("app").style.display = "block";
-        // focus the question field first
         setTimeout(() => document.getElementById("userInput").focus(), 0);
       } else {
-        err.textContent = "Onjuist wachtwoord.";
+        err.textContent = "Incorrect password.";
       }
     }
     document.getElementById("enter").addEventListener("click", unlock);
     document.getElementById("pw").addEventListener("keydown", e => { if (e.key === "Enter") unlock(); });
 
-    // ====== Existing app code ======
     const companyName = "TestAccount";
     const companyDescription = document.querySelector('meta[name="company-description"]').content;
 
-    // Language detector
     function detectLanguage(text) {
       const t = (text || "").trim().toLowerCase();
       if (!t) return null;
@@ -132,7 +142,6 @@
       return "nl";
     }
 
-    // Preset toggle + autofill
     const togglePresets = document.getElementById("togglePresets");
     const presetSelect  = document.getElementById("presetSelect");
     const userInputEl   = document.getElementById("userInput");
@@ -148,7 +157,6 @@
       userInputEl.focus();
     });
 
-    // Chat function
     async function sendToGPT() {
       const input = userInputEl.value.trim();
       const ubn = document.getElementById("ubnInput").value.trim();
@@ -175,9 +183,9 @@
         });
 
         const reply = await res.text();
-        responseEl.innerText = reply || "Geen antwoord ontvangen.";
+        responseEl.innerText = reply || "No answer received.";
       } catch (err) {
-        responseEl.innerText = "Fout: " + err.message;
+        responseEl.innerText = "Error: " + err.message;
       }
     }
   </script>
