@@ -7,6 +7,7 @@
   <style>
     body { background-color:#f9f9f9; font-family:Arial,sans-serif; height:100vh; margin:0; }
 
+    /* Password gate */
     #gate { position:fixed; inset:0; background:#0b172033; display:flex; align-items:center; justify-content:center; z-index:9999; backdrop-filter:blur(6px); }
     .gate-card { background:#fff; width:90%; max-width:420px; padding:24px; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,.15); text-align:center; }
     .gate-card h3 { margin:0 0 8px; color:#007b5e; }
@@ -18,13 +19,14 @@
 
     #app{ display:none; }
 
+    /* App card */
     .wrap{ display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding-top:30px; }
     .chat-box{ background:#fff; padding:30px; border-radius:12px; box-shadow:0 8px 20px rgba(0,0,0,.1); width:90%; max-width:600px; text-align:center; margin:30px auto; }
     img.logo{ width:150px; margin-bottom:10px; }
     h1{ color:#007b5e; margin:10px 0 5px 0; font-size:32px; }
     h2{ color:#555; margin:0 0 10px 0; font-size:16px; font-weight:normal; }
 
-    /* Unified control sizing */
+    /* Controls */
     .field-wrap { width:80%; margin:0 auto 10px; }
     .field-wrap input,
     .field-wrap button,
@@ -39,12 +41,12 @@
     button{ background-color:#007b5e; color:#fff; cursor:pointer; }
     button:hover{ background-color:#005c49; }
 
-    /* Checkbox row aligned with inputs */
+    /* Checkbox row */
     .control-row { width:80%; margin:4px auto 6px; display:flex; align-items:center; gap:10px; text-align:left; }
     .control-row input[type="checkbox"]{ width:auto; margin:0; }
     .control-row label{ font-size:14px; color:#555; user-select:none; }
 
-    /* Hide preset until toggled */
+    /* Hidden preset container by default */
     #presetWrap { display:none; }
 
     pre{ margin-top:20px; text-align:left; background:#f0f0f0; padding:15px; border-radius:6px; white-space:pre-wrap; word-wrap:break-word; min-height:50px; }
@@ -75,12 +77,12 @@
           <input id="ubnInput" placeholder="Enter your UBN (farm registration number)..." />
         </div>
 
-        <!-- Free text (visible only when presets are OFF) -->
+        <!-- Free text (shown when presets are OFF) -->
         <div id="userInputWrap" class="field-wrap">
           <input id="userInput" placeholder="Type your question here in English, Dutch, German or French ..." />
         </div>
 
-        <!-- Preset dropdown (visible only when presets are ON) -->
+        <!-- Preset dropdown (shown when presets are ON) -->
         <div id="presetWrap" class="field-wrap">
           <select id="presetSelect" aria-label="Suggested questions">
             <option value="">— Choose a preset question —</option>
@@ -218,7 +220,8 @@
         const reply = await res.text();
         responseEl.innerText = reply || "No answer received.";
       } catch (err) {
-        responseEl.innerText = "Error: " + err.message.";
+        // BUGFIX: no stray quote here
+        responseEl.innerText = "Error: " + err.message;
       }
     }
   </script>
