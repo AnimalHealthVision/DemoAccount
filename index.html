@@ -44,7 +44,7 @@
     .control-row input[type="checkbox"]{ width:auto; margin:0; }
     .control-row label{ font-size:14px; color:#555; user-select:none; }
 
-    /* Hide select until toggled */
+    /* Hide preset until toggled */
     #presetWrap { display:none; }
 
     pre{ margin-top:20px; text-align:left; background:#f0f0f0; padding:15px; border-radius:6px; white-space:pre-wrap; word-wrap:break-word; min-height:50px; }
@@ -80,12 +80,6 @@
           <input id="userInput" placeholder="Type your question here in English, Dutch, German or French ..." />
         </div>
 
-        <!-- Toggle -->
-        <div class="control-row">
-          <input type="checkbox" id="togglePresets" />
-          <label for="togglePresets">Show suggested questions</label>
-        </div>
-
         <!-- Preset dropdown (visible only when presets are ON) -->
         <div id="presetWrap" class="field-wrap">
           <select id="presetSelect" aria-label="Suggested questions">
@@ -101,6 +95,12 @@
             <option>How many cows are due to dry off in the next 3 months and what is their current milk yield?</option>
             <option>Create three lists from the latest MPR: metabolic risk, active udder protocol need (DIM 7–100 & SCC ≥100k), and dry-off risk (milk >20kg and/or SCC >200k within 30 days).</option>
           </select>
+        </div>
+
+        <!-- Toggle BELOW whichever input is shown -->
+        <div class="control-row">
+          <input type="checkbox" id="togglePresets" />
+          <label for="togglePresets">Show suggested questions</label>
         </div>
 
         <div class="field-wrap">
@@ -182,16 +182,10 @@
       const on = togglePresets.checked;
       presetWrap.style.display   = on ? "block" : "none";
       userInputWrap.style.display= on ? "none"  : "block";
-      // Clear the hidden control to avoid stale values
       if (on) { userInputEl.value = ""; presetSelect.focus(); }
       else    { presetSelect.value = ""; userInputEl.focus(); }
     }
     togglePresets.addEventListener("change", updateMode);
-
-    presetSelect.addEventListener("change", () => {
-      // (Optional) Mirror selected preset into hidden input if you prefer
-      // userInputEl.value = presetSelect.value.trim();
-    });
 
     async function sendToGPT() {
       const usingPreset = togglePresets.checked;
@@ -224,7 +218,7 @@
         const reply = await res.text();
         responseEl.innerText = reply || "No answer received.";
       } catch (err) {
-        responseEl.innerText = "Error: " + err.message;
+        responseEl.innerText = "Error: " + err.message.";
       }
     }
   </script>
