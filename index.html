@@ -45,7 +45,7 @@
     .control-row label{ font-size:14px; color:#555; user-select:none; }
 
     /* Hide select until toggled */
-    #presetSelect { display:none; }
+    #presetWrap { display:none; }
 
     pre{ margin-top:20px; text-align:left; background:#f0f0f0; padding:15px; border-radius:6px; white-space:pre-wrap; word-wrap:break-word; min-height:50px; }
   </style>
@@ -75,19 +75,19 @@
           <input id="ubnInput" placeholder="Enter your UBN (farm registration number)..." />
         </div>
 
-        <!-- Free text -->
-        <div class="field-wrap">
+        <!-- Free text (visible only when presets are OFF) -->
+        <div id="userInputWrap" class="field-wrap">
           <input id="userInput" placeholder="Type your question here in English, Dutch, German or French ..." />
         </div>
 
-        <!-- Checkbox row aligned to same width -->
+        <!-- Toggle -->
         <div class="control-row">
           <input type="checkbox" id="togglePresets" />
           <label for="togglePresets">Show suggested questions</label>
         </div>
 
-        <!-- Preset dropdown wrapped to same width -->
-        <div class="field-wrap">
+        <!-- Preset dropdown (visible only when presets are ON) -->
+        <div id="presetWrap" class="field-wrap">
           <select id="presetSelect" aria-label="Suggested questions">
             <option value="">— Choose a preset question —</option>
             <option>Analyze the last 12 months of orders and herd data; identify missing product families and cross-sell or upsell opportunities.</option>
@@ -121,7 +121,6 @@
         <div class="file-preview" id="filePreview"></div>
       </div>
       -->
-
     </div>
   </div>
 
@@ -141,7 +140,11 @@
       if (hex === PASS_HASH) {
         document.getElementById("gate").style.display = "none";
         document.getElementById("app").style.display = "block";
-        setTimeout(() => document.getElementById("userInput").focus(), 0);
+        // Focus whichever control is visible
+        setTimeout(() => {
+          const t = document.getElementById("togglePresets").checked;
+          (t ? document.getElementById("presetSelect") : document.getElementById("userInput")).focus();
+        }, 0);
       } else {
         err.textContent = "Incorrect password.";
       }
@@ -169,32 +172,42 @@
     }
 
     const togglePresets = document.getElementById("togglePresets");
-    const presetSelect  = document.getElementById("presetSelect");
-    const userInputEl   = document.getElementById("userInput");
+    const presetWrap   = document.getElementById("presetWrap");
+    const presetSelect = document.getElementById("presetSelect");
+    const userInputWrap= document.getElementById("userInputWrap");
+    const userInputEl  = document.getElementById("userInput");
 
-    togglePresets.addEventListener("change", () => {
-      presetSelect.style.display = togglePresets.checked ? "block" : "none";
-      if (!togglePresets.checked) presetSelect.value = "";
-    });
+    // Toggle visibility: presets OR free text
+    function updateMode() {
+      const on = togglePresets.checked;
+      presetWrap.style.display   = on ? "block" : "none";
+      userInputWrap.style.display= on ? "none"  : "block";
+      // Clear the hidden control to avoid stale values
+      if (on) { userInputEl.value = ""; presetSelect.focus(); }
+      else    { presetSelect.value = ""; userInputEl.focus(); }
+    }
+    togglePresets.addEventListener("change", updateMode);
 
     presetSelect.addEventListener("change", () => {
-      const v = presetSelect.value.trim();
-      if (v) userInputEl.value = v;
-      userInputEl.focus();
+      // (Optional) Mirror selected preset into hidden input if you prefer
+      // userInputEl.value = presetSelect.value.trim();
     });
 
     async function sendToGPT() {
-      const input = userInputEl.value.trim();
+      const usingPreset = togglePresets.checked;
+      const message = usingPreset ? (presetSelect.value || "").trim()
+                                  : (userInputEl.value || "").trim();
+
       const ubn = document.getElementById("ubnInput").value.trim();
       const responseEl = document.getElementById("response");
       responseEl.innerText = "Thinking… answer will appear in 30 seconds.";
-      const inputLang = detectLanguage(input);
+      const inputLang = detectLanguage(message);
 
       try {
         const payload = {
           company_name: companyName,
           company_description: companyDescription,
-          message: input,
+          message,
           input_language: inputLang
         };
         if (ubn) payload.ubn = ubn;
@@ -217,6 +230,3 @@
   </script>
 </body>
 </html>
-
-
-
