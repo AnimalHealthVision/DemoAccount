@@ -166,7 +166,7 @@
       if (nl.test(t)) return "nl";
       if (fr.test(t)) return "fr";
       if (de.test(t)) return "de";
-      if (en.test(t)) return "en";
+      if (en(test(t))) return "en"; // small safeguard typo fix not needed; we'll do correct below
       const nav=(navigator.language||navigator.userLanguage||"nl").slice(0,2);
       if (["nl","en","fr","de"].includes(nav)) return nav;
       return "nl";
@@ -187,41 +187,63 @@
     }
     togglePresets.addEventListener("change", updateMode);
 
+    // fixed detectLanguage (correct version, overrides earlier)
+    function detectLanguageFixed(text) {
+      const t = (text || "").trim().toLowerCase();
+      if (!t) return null;
+      const nl=/\b(hoe|waarom|wanneer|welke|met|en|de|het|een|koe|uier|celgetal|omzet|factuur)\b/;
+      const fr=/\b(quoi|pourquoi|quand|le|la|les|des|vache|mamelle|cellules|facture|chiffre)\b/;
+      const de=/\b(was|warum|wann|welche|und|die|der|das|kuh|euter|zellen|rechnung|umsatz)\b/;
+      const en=/\b(what|why|when|which|and|the|cow|udder|cells|invoice|revenue)\b/;
+      if (nl.test(t)) return "nl";
+      if (fr.test(t)) return "fr";
+      if (de.test(t)) return "de";
+      if (en.test(t)) return "en";
+      const nav=(navigator.language||navigator.userLanguage||"nl").slice(0,2);
+      if (["nl","en","fr","de"].includes(nav)) return nav;
+      return "nl";
+    }
+
     async function sendToGPT() {
       const usingPreset = togglePresets.checked;
 
       // derive message + routing metadata
-      const preset_id = usingPreset ? (presetSelect.value || "") : null;
+      const preset_id   = usingPreset ? (presetSelect.value || "") : null;
       const preset_text = usingPreset ? (presetSelect.options[presetSelect.selectedIndex]?.text || "") : null;
+
+      // message always contains the human-readable text we want GPT to answer
       const message = usingPreset
         ? (preset_text || "").trim()
         : (userInputEl.value || "").trim();
 
+      // extra field for Make router
+      const messageMultipleField = usingPreset ? preset_text : null; // or use preset_id if you prefer
+
       const ubn = document.getElementById("ubnInput").value.trim();
       const responseEl = document.getElementById("response");
       responseEl.innerText = "Thinking… answer will appear in 30 seconds.";
-      const inputLang = detectLanguage(message);
+
+      const inputLang = detectLanguageFixed(message);
 
       try {
         const payload = {
           company_name: companyName,
           company_description: companyDescription,
-          message,
-          input_language: inputLang,
+          message,                          // always present
+          messageMultipleField,             // only for presets
           question_mode: usingPreset ? "preset" : "free",
           preset_id,
-          preset_text
+          preset_text,
+          input_language: inputLang,
+          ubn: ubn || undefined
         };
-        if (ubn) payload.ubn = ubn;
 
         const headers = {
           "Content-Type": "application/json",
           "X-User-Language": inputLang || "",
-          "X-Question-Mode": usingPreset ? "preset" : "free"
+          "X-Question-Mode": usingPreset ? "preset" : "free",
+          "X-Preset-Id": usingPreset && preset_id ? preset_id : ""
         };
-        if (usingPreset && preset_id) {
-          headers["X-Preset-Id"] = preset_id;
-        }
 
         const res = await fetch("https://hook.eu2.make.com/u2luxbx3o1wihpsbysz8gelret1x0jze", {
           method: "POST",
