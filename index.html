@@ -86,16 +86,16 @@
         <div id="presetWrap" class="field-wrap">
           <select id="presetSelect" aria-label="Suggested questions">
             <option value="">— Choose a preset question —</option>
-            <option>Analyze the last 12 months of orders and herd data; identify missing product families and cross-sell or upsell opportunities.</option>
-            <option>Using last order date and revenue trends, estimate the chance of a new sale if I visit this month.</option>
-            <option>From the latest MPR, what % of cows expected to dry off in the next 30 days are producing over 20 kg and over 25 kg milk?</option>
-            <option>For cows ≤60 DIM in the latest MPR, what % have FPR ≥1.40 at first and second milk recording?</option>
-            <option>Show the herd’s average milk yield curve from calving to 100 DIM using the last 12 months of MPR data and note any >30% drops.</option>
-            <option>In the latest MPR, how many cows have SCC >200k (heifers >100k)? Indicate chronic vs good-prognosis animals.</option>
-            <option>Compare SCC before dry-off and first SCC after calving for cows dried off in the last 6 months; summarize udder health changes.</option>
-            <option>For cows ≤100 DIM in the latest MPR, compare milk yield vs expected, flag ketosis risk and FPR ≥1.40, and mark ≥30% milk drops.</option>
-            <option>How many cows are due to dry off in the next 3 months and what is their current milk yield?</option>
-            <option>Create three lists from the latest MPR: metabolic risk, active udder protocol need (DIM 7–100 & SCC ≥100k), and dry-off risk (milk >20kg and/or SCC >200k within 30 days).</option>
+            <option value="Q1_CrossUpsell">Analyze the last 12 months of orders and herd data; identify missing product families and cross-sell or upsell opportunities.</option>
+            <option value="Q2_SaleChanceThisMonth">Using last order date and revenue trends, estimate the chance of a new sale if I visit this month.</option>
+            <option value="Q3_DryOff_20_25kg">From the latest MPR, what % of cows expected to dry off in the next 30 days are producing over 20 kg and over 25 kg milk?</option>
+            <option value="Q4_FPR_Le60DIM">For cows ≤60 DIM in the latest MPR, what % have FPR ≥1.40 at first and second milk recording?</option>
+            <option value="Q5_MilkCurve_0_100DIM">Show the herd’s average milk yield curve from calving to 100 DIM using the last 12 months of MPR data and note any >30% drops.</option>
+            <option value="Q6_SCC_Bands_LatestMPR">In the latest MPR, how many cows have SCC >200k (heifers >100k)? Indicate chronic vs good-prognosis animals.</option>
+            <option value="Q7_SCC_DryOff_vs_PostCalving">Compare SCC before dry-off and first SCC after calving for cows dried off in the last 6 months; summarize udder health changes.</option>
+            <option value="Q8_FreshCows_0_100DIM">For cows ≤100 DIM in the latest MPR, compare milk yield vs expected, flag ketosis risk and FPR ≥1.40, and mark ≥30% milk drops.</option>
+            <option value="Q9_DryOff_3Months">How many cows are due to dry off in the next 3 months and what is their current milk yield?</option>
+            <option value="Q10_RiskLists">Create three lists from the latest MPR: metabolic risk, active udder protocol need (DIM 7–100 & SCC ≥100k), and dry-off risk (milk >20kg and/or SCC >200k within 30 days).</option>
           </select>
         </div>
 
@@ -142,7 +142,6 @@
       if (hex === PASS_HASH) {
         document.getElementById("gate").style.display = "none";
         document.getElementById("app").style.display = "block";
-        // Focus whichever control is visible
         setTimeout(() => {
           const t = document.getElementById("togglePresets").checked;
           (t ? document.getElementById("presetSelect") : document.getElementById("userInput")).focus();
@@ -179,7 +178,6 @@
     const userInputWrap= document.getElementById("userInputWrap");
     const userInputEl  = document.getElementById("userInput");
 
-    // Toggle visibility: presets OR free text
     function updateMode() {
       const on = togglePresets.checked;
       presetWrap.style.display   = on ? "block" : "none";
@@ -191,8 +189,13 @@
 
     async function sendToGPT() {
       const usingPreset = togglePresets.checked;
-      const message = usingPreset ? (presetSelect.value || "").trim()
-                                  : (userInputEl.value || "").trim();
+
+      // derive message + routing metadata
+      const preset_id = usingPreset ? (presetSelect.value || "") : null;
+      const preset_text = usingPreset ? (presetSelect.options[presetSelect.selectedIndex]?.text || "") : null;
+      const message = usingPreset
+        ? (preset_text || "").trim()
+        : (userInputEl.value || "").trim();
 
       const ubn = document.getElementById("ubnInput").value.trim();
       const responseEl = document.getElementById("response");
@@ -204,23 +207,31 @@
           company_name: companyName,
           company_description: companyDescription,
           message,
-          input_language: inputLang
+          input_language: inputLang,
+          question_mode: usingPreset ? "preset" : "free",
+          preset_id,
+          preset_text
         };
         if (ubn) payload.ubn = ubn;
 
+        const headers = {
+          "Content-Type": "application/json",
+          "X-User-Language": inputLang || "",
+          "X-Question-Mode": usingPreset ? "preset" : "free"
+        };
+        if (usingPreset && preset_id) {
+          headers["X-Preset-Id"] = preset_id;
+        }
+
         const res = await fetch("https://hook.eu2.make.com/u2luxbx3o1wihpsbysz8gelret1x0jze", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-User-Language": inputLang || ""
-          },
+          headers,
           body: JSON.stringify(payload)
         });
 
         const reply = await res.text();
         responseEl.innerText = reply || "No answer received.";
       } catch (err) {
-        // BUGFIX: no stray quote here
         responseEl.innerText = "Error: " + err.message;
       }
     }
