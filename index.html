@@ -50,7 +50,7 @@
     /* Hidden preset container by default */
     #presetWrap { display:none; }
 
-    /* WIDER output block */
+    /* WIDER output block (a bit wider than inputs) */
     pre{
       margin:20px auto 0;
       text-align:left;
@@ -64,6 +64,28 @@
       box-sizing:border-box;
     }
 
+    /* Download buttons row (hidden until answer exists) */
+    .download-row{
+      display:none;                 /* shown after answer arrives */
+      width:92%;
+      margin:8px auto 0;
+      display:flex;
+      gap:8px;
+      justify-content:flex-start;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .small-btn{
+      padding:8px 12px;
+      font-size:14px;
+      border-radius:6px;
+      border:1px solid #0a6b55;
+      background:#007b5e;
+      color:#fff;
+      cursor:pointer;
+    }
+    .small-btn:hover{ background:#005c49; }
+
     /* Mobile-friendly tweaks */
     @media (max-width: 640px) {
       .chat-box{ padding:20px; width:95%; }
@@ -73,6 +95,7 @@
       .field-wrap,
       .control-row{ width:100%; }
       pre{ width:100%; font-size:14px; }
+      .download-row{ width:100%; }
     }
   </style>
 </head>
@@ -133,15 +156,13 @@
           <button onclick="sendToGPT()">Send</button>
         </div>
 
-        <!-- New: download buttons -->
-        <div class="field-wrap">
-          <button onclick="downloadDocx()">Download as Word (.docx)</button>
-        </div>
-        <div class="field-wrap" style="margin-top:8px;">
-          <button onclick="downloadPDF()">Download as PDF</button>
-        </div>
-
         <pre id="response">Answer will appear here...</pre>
+
+        <!-- Download buttons (hidden until answer exists) -->
+        <div id="downloadRow" class="download-row">
+          <button class="small-btn" onclick="downloadDocx()">Download .docx</button>
+          <button class="small-btn" onclick="downloadPDF()">Download PDF</button>
+        </div>
       </div>
 
       <!--
@@ -258,7 +279,11 @@
 
       const ubn = document.getElementById("ubnInput").value.trim();
       const responseEl = document.getElementById("response");
+      const dlRow = document.getElementById("downloadRow");
+
+      // show thinking + hide download buttons until we have a real answer
       responseEl.innerText = "Thinking… answer will appear in 30 seconds.";
+      dlRow.style.display = "none";
 
       const inputLang = detectLanguageFixed(message);
 
@@ -290,8 +315,14 @@
 
         const reply = await res.text();
         responseEl.innerText = reply || "No answer received.";
+
+        // Only show download buttons when a real answer is present
+        if (reply && reply.trim().length > 0 && reply !== "No answer received.") {
+          dlRow.style.display = "flex";
+        }
       } catch (err) {
         responseEl.innerText = "Error: " + err.message;
+        // keep buttons hidden on error
       }
     }
 
