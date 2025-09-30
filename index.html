@@ -50,7 +50,7 @@
     /* Hidden preset container by default */
     #presetWrap { display:none; }
 
-    /* WIDER output block (a bit wider than inputs) */
+    /* WIDER output block */
     pre{
       margin:20px auto 0;
       text-align:left;
@@ -60,7 +60,7 @@
       white-space:pre-wrap;
       word-wrap:break-word;
       min-height:50px;
-      width:92%;          /* <-- widened */
+      width:92%;
       box-sizing:border-box;
     }
 
@@ -133,6 +133,14 @@
           <button onclick="sendToGPT()">Send</button>
         </div>
 
+        <!-- New: download buttons -->
+        <div class="field-wrap">
+          <button onclick="downloadDocx()">Download as Word (.docx)</button>
+        </div>
+        <div class="field-wrap" style="margin-top:8px;">
+          <button onclick="downloadPDF()">Download as PDF</button>
+        </div>
+
         <pre id="response">Answer will appear here...</pre>
       </div>
 
@@ -149,6 +157,11 @@
       -->
     </div>
   </div>
+
+  <!-- DOCX + PDF helpers (lightweight, CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 
   <script>
     const PASS_HASH = "234f1d8746bbd3d0b3a236243b96f8c353c7625c4af41f3d86aac4f239a7e2d0"; // SHA-256 of "AHVDemo123!"
@@ -280,6 +293,36 @@
       } catch (err) {
         responseEl.innerText = "Error: " + err.message;
       }
+    }
+
+    // --- Download helpers ---
+    function downloadDocx() {
+      const { Document, Packer, Paragraph, TextRun } = docx;
+      const text = (document.getElementById("response").innerText || "").replace(/\r\n/g, "\n");
+      const paragraphs = text.split("\n").map(line => new Paragraph({ children: [new TextRun(line)] }));
+      const doc = new Document({ sections: [{ properties: {}, children: paragraphs.length ? paragraphs : [new Paragraph("")] }]});
+      Packer.toBlob(doc).then(blob => saveAs(blob, "answer.docx"));
+    }
+
+    function downloadPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit:"pt", format:"a4" });
+      const text = (document.getElementById("response").innerText || "");
+      const margin = 40;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const maxWidth = pageWidth - margin * 2;
+      const lines = doc.splitTextToSize(text, maxWidth);
+      let y = margin;
+      const lineHeight = 16;
+
+      lines.forEach(line => {
+        if (y > pageHeight - margin) { doc.addPage(); y = margin; }
+        doc.text(line, margin, y);
+        y += lineHeight;
+      });
+
+      doc.save("answer.pdf");
     }
   </script>
 </body>
