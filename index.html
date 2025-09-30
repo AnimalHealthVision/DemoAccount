@@ -22,13 +22,17 @@
 
     /* App card */
     .wrap{ display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding-top:30px; }
-    .chat-box{ background:#fff; padding:30px; border-radius:12px; box-shadow:0 8px 20px rgba(0,0,0,.1); width:90%; max-width:600px; text-align:center; margin:30px auto; }
+    .chat-box{
+      background:#fff; padding:30px; border-radius:12px; box-shadow:0 8px 20px rgba(0,0,0,.1);
+      width:90%; max-width:740px;           /* a bit wider, still centered */
+      text-align:center; margin:30px auto;
+    }
     img.logo{ width:150px; margin-bottom:10px; }
     h1{ color:#007b5e; margin:10px 0 5px 0; font-size:32px; }
     h2{ color:#555; margin:0 0 10px 0; font-size:16px; font-weight:normal; }
 
     /* Controls */
-    .field-wrap { width:80%; margin:0 auto 10px; }
+    .field-wrap { width:90%; margin:0 auto 10px; }   /* slightly wider */
     .field-wrap input,
     .field-wrap button,
     .field-wrap select {
@@ -43,14 +47,14 @@
     button:hover{ background-color:#005c49; }
 
     /* Checkbox row */
-    .control-row { width:80%; margin:4px auto 6px; display:flex; align-items:center; gap:10px; text-align:left; }
+    .control-row { width:90%; margin:4px auto 6px; display:flex; align-items:center; gap:10px; text-align:left; }
     .control-row input[type="checkbox"]{ width:auto; margin:0; }
     .control-row label{ font-size:14px; color:#555; user-select:none; }
 
     /* Hidden preset container by default */
     #presetWrap { display:none; }
 
-    /* WIDER output block (a bit wider than inputs) */
+    /* Wider output block */
     pre{
       margin:20px auto 0;
       text-align:left;
@@ -60,16 +64,15 @@
       white-space:pre-wrap;
       word-wrap:break-word;
       min-height:50px;
-      width:92%;
+      width:96%;                    /* a bit wider inside the card */
       box-sizing:border-box;
     }
 
     /* Download buttons row (hidden until answer exists) */
     .download-row{
-      display:none;                 /* shown after answer arrives */
-      width:92%;
+      display:none;                 /* stays hidden until JS sets to flex */
+      width:96%;
       margin:8px auto 0;
-      display:flex;
       gap:8px;
       justify-content:flex-start;
       align-items:center;
@@ -92,8 +95,7 @@
       img.logo{ width:120px; }
       h1{ font-size:26px; }
       h2{ font-size:14px; }
-      .field-wrap,
-      .control-row{ width:100%; }
+      .field-wrap, .control-row{ width:100%; }
       pre{ width:100%; font-size:14px; }
       .download-row{ width:100%; }
     }
@@ -165,21 +167,11 @@
         </div>
       </div>
 
-      <!--
-      Use case 3: AHV / Photo Upload Section (disabled for now)
-      <div class="chat-box" style="opacity:0.4; pointer-events:none;">
-        <h2>Upload a photo of the completed treatment card using your phone</h2>
-        <input type="file" id="imageUpload" accept="image/*" />
-        <br />
-        <button onclick="uploadImage()">Send</button>
-        <pre id="imageResponse">Answer will appear here...</pre>
-        <div class="file-preview" id="filePreview"></div>
-      </div>
-      -->
+      <!-- (Photo Upload Section disabled) -->
     </div>
   </div>
 
-  <!-- DOCX + PDF helpers (lightweight, CDN) -->
+  <!-- DOCX + PDF helpers -->
   <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
@@ -224,7 +216,7 @@
       if (nl.test(t)) return "nl";
       if (fr.test(t)) return "fr";
       if (de.test(t)) return "de";
-      if (en(test(t))) return "en"; // retained (not used) to keep everything else the same
+      if (en(test(t))) return "en"; // retained (not used)
       const nav=(navigator.language||navigator.userLanguage||"nl").slice(0,2);
       if (["nl","en","fr","de"].includes(nav)) return nav;
       return "nl";
@@ -275,7 +267,7 @@
         : (userInputEl.value || "").trim();
 
       // extra field for Make router
-      const messageMultipleField = usingPreset ? preset_text : null; // or use preset_id if you prefer
+      const messageMultipleField = usingPreset ? preset_text : null;
 
       const ubn = document.getElementById("ubnInput").value.trim();
       const responseEl = document.getElementById("response");
@@ -291,8 +283,8 @@
         const payload = {
           company_name: companyName,
           company_description: companyDescription,
-          message,                          // always present
-          messageMultipleField,             // only for presets
+          message,
+          messageMultipleField,
           question_mode: usingPreset ? "preset" : "free",
           preset_id,
           preset_text,
