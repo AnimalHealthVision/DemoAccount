@@ -24,15 +24,28 @@
     .wrap{ display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding-top:30px; }
     .chat-box{
       background:#fff; padding:30px; border-radius:12px; box-shadow:0 8px 20px rgba(0,0,0,.1);
-      width:90%; max-width:740px;           /* a bit wider, still centered */
+      width:90%; max-width:740px;
       text-align:center; margin:30px auto;
     }
     img.logo{ width:150px; margin-bottom:10px; }
     h1{ color:#007b5e; margin:10px 0 5px 0; font-size:32px; }
     h2{ color:#555; margin:0 0 10px 0; font-size:16px; font-weight:normal; }
 
+    /* Farm identifiers styles */
+    .farm-table{
+      width:90%; margin:12px auto; border-collapse:collapse; font-size:15px;
+      background:#fff;
+    }
+    .farm-table th, .farm-table td{ border:1px solid #e0e0e0; padding:10px; }
+    .farm-table th{ background:#f3f6f5; color:#007b5e; text-align:left; }
+    .id-block{
+      width:90%; margin:8px auto 0; background:#f6f6f6; padding:12px;
+      border:1px dashed #ccc; border-radius:6px;
+      font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    }
+
     /* Controls */
-    .field-wrap { width:90%; margin:0 auto 10px; }   /* slightly wider */
+    .field-wrap { width:90%; margin:0 auto 10px; }
     .field-wrap input,
     .field-wrap button,
     .field-wrap select {
@@ -46,15 +59,12 @@
     button{ background-color:#007b5e; color:#fff; cursor:pointer; }
     button:hover{ background-color:#005c49; }
 
-    /* Checkbox row */
     .control-row { width:90%; margin:4px auto 6px; display:flex; align-items:center; gap:10px; text-align:left; }
     .control-row input[type="checkbox"]{ width:auto; margin:0; }
     .control-row label{ font-size:14px; color:#555; user-select:none; }
 
-    /* Hidden preset container by default */
     #presetWrap { display:none; }
 
-    /* Wider output block */
     pre{
       margin:20px auto 0;
       text-align:left;
@@ -64,13 +74,12 @@
       white-space:pre-wrap;
       word-wrap:break-word;
       min-height:50px;
-      width:96%;                    /* a bit wider inside the card */
+      width:96%;
       box-sizing:border-box;
     }
 
-    /* Download buttons row (hidden until answer exists) */
     .download-row{
-      display:none;                 /* stays hidden until JS sets to flex */
+      display:none;
       width:96%;
       margin:8px auto 0;
       gap:8px;
@@ -89,7 +98,6 @@
     }
     .small-btn:hover{ background:#005c49; }
 
-    /* Mobile-friendly tweaks */
     @media (max-width: 640px) {
       .chat-box{ padding:20px; width:95%; }
       img.logo{ width:120px; }
@@ -121,6 +129,26 @@
         <img class="logo" src="ahv-logo.jpg" alt="AHV logo" />
         <h1>Demo account</h1>
         <h2>In this demo, you can ask questions about the farm, cows, or sales from the past 12 months for farms 406051 (NL), 066526303 (GB), DE010550444423 (DE), and 42213083 (FR).</h2>
+
+        <!-- ✅ Farm identifiers direct onder de uitlegtekst -->
+        <section id="farmIds">
+          <h3 style="color:#007b5e; margin:10px 5% 6px;">Farm identifiers</h3>
+          <table class="farm-table" aria-label="Farm identifiers per country">
+            <thead>
+              <tr><th>Land</th><th>Identifier</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Nederland (NL)</td><td>406051</td></tr>
+              <tr><td>Verenigd Koninkrijk (GB)</td><td>066526303</td></tr>
+              <tr><td>Duitsland (DE)</td><td>DE010550444423</td></tr>
+              <tr><td>Frankrijk (FR)</td><td>42213083</td></tr>
+            </tbody>
+          </table>
+          <div class="id-block" aria-label="Identifiers samengevat">
+            NL: 406051 &nbsp;|&nbsp; GB: 066526303 &nbsp;|&nbsp; DE: DE010550444423 &nbsp;|&nbsp; FR: 42213083
+          </div>
+        </section>
+        <!-- ✅ einde toevoeging -->
 
         <div class="field-wrap">
           <input id="ubnInput" placeholder="Enter your UBN (farm registration number)..." />
@@ -206,7 +234,8 @@
     const companyName = "TestAccount";
     const companyDescription = document.querySelector('meta[name="company-description"]').content;
 
-    function detectLanguage(text) {
+    // fixed detectLanguage (correct version, overrides earlier)
+    function detectLanguageFixed(text) {
       const t = (text || "").trim().toLowerCase();
       if (!t) return null;
       const nl=/\b(hoe|waarom|wanneer|welke|met|en|de|het|een|koe|uier|celgetal|omzet|factuur)\b/;
@@ -216,7 +245,7 @@
       if (nl.test(t)) return "nl";
       if (fr.test(t)) return "fr";
       if (de.test(t)) return "de";
-      if (en(test(t))) return "en"; // retained (not used)
+      if (en.test(t)) return "en";
       const nav=(navigator.language||navigator.userLanguage||"nl").slice(0,2);
       if (["nl","en","fr","de"].includes(nav)) return nav;
       return "nl";
@@ -236,23 +265,6 @@
       else    { presetSelect.value = ""; userInputEl.focus(); }
     }
     togglePresets.addEventListener("change", updateMode);
-
-    // fixed detectLanguage (correct version, overrides earlier)
-    function detectLanguageFixed(text) {
-      const t = (text || "").trim().toLowerCase();
-      if (!t) return null;
-      const nl=/\b(hoe|waarom|wanneer|welke|met|en|de|het|een|koe|uier|celgetal|omzet|factuur)\b/;
-      const fr=/\b(quoi|pourquoi|quand|le|la|les|des|vache|mamelle|cellules|facture|chiffre)\b/;
-      const de=/\b(was|warum|wann|welche|und|die|der|das|kuh|euter|zellen|rechnung|umsatz)\b/;
-      const en=/\b(what|why|when|which|and|the|cow|udder|cells|invoice|revenue)\b/;
-      if (nl.test(t)) return "nl";
-      if (fr.test(t)) return "fr";
-      if (de.test(t)) return "de";
-      if (en.test(t)) return "en";
-      const nav=(navigator.language||navigator.userLanguage||"nl").slice(0,2);
-      if (["nl","en","fr","de"].includes(nav)) return nav;
-      return "nl";
-    }
 
     async function sendToGPT() {
       const usingPreset = togglePresets.checked;
