@@ -37,7 +37,7 @@
     }
     .farm-table th, .farm-table td{ border:1px solid #e0e0e0; padding:10px; }
     .farm-table th{ background:#f3f6f5; color:#007b5e; text-align:center; }
-    .farm-table td{ text-align:center; }
+    .farm-table td{ text-align:center; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
 
     /* Controls */
     .field-wrap { width:90%; margin:0 auto 10px; }
@@ -124,7 +124,7 @@
         <img class="logo" src="ahv-logo.jpg" alt="AHV logo" />
         <h1>Demo account</h1>
 
-        <!-- Tekst + een enkele tabel eronder -->
+        <!-- Tekst + tabel -->
         <h2>In this demo, you can ask questions about the farm, cows, or sales from the past 12 months for the following farms:</h2>
         <table class="farm-table" aria-label="Farm identifiers per country">
           <thead>
@@ -139,13 +139,49 @@
           <tbody>
             <tr>
               <td>406051</td>
-              <td>066526303</td>
-              <td>DE010550444423</td>
-              <td>42213083</td>
+              <td>027754901</td>
+              <td>033570182014</td>
+              <td>22272100</td>
               <td>1102314969</td>
+            </tr>
+            <tr>
+              <td>412980</td>
+              <td>066526303</td>
+              <td>141882600093</td>
+              <td>29274489</td>
+              <td>1301704331</td>
+            </tr>
+            <tr>
+              <td>527002</td>
+              <td>901062000</td>
+              <td>143795003300</td>
+              <td>42213083</td>
+              <td>4300202077</td>
+            </tr>
+            <tr>
+              <td>530295</td>
+              <td>901239700</td>
+              <td>160710110010</td>
+              <td>50189022</td>
+              <td>4300605134</td>
+            </tr>
+            <tr>
+              <td>600345</td>
+              <td>902626200</td>
+              <td>DE010550444423</td>
+              <td>50551254</td>
+              <td>4601600477</td>
+            </tr>
+            <tr>
+              <td>6313605</td>
+              <td>909502900</td>
+              <td></td>
+              <td>56144020</td>
+              <td></td>
             </tr>
           </tbody>
         </table>
+        <!-- einde -->
 
         <div class="field-wrap">
           <input id="ubnInput" placeholder="Enter your UBN (farm registration number)..." />
@@ -229,7 +265,7 @@
     const companyName = "TestAccount";
     const companyDescription = document.querySelector('meta[name="company-description"]').content;
 
-    // Language detection (opgeschoond, enkele definitie)
+    // Language detection (single, working version)
     function detectLanguageFixed(text) {
       const t = (text || "").trim().toLowerCase();
       if (!t) return null;
@@ -264,23 +300,19 @@
     async function sendToGPT() {
       const usingPreset = togglePresets.checked;
 
-      // derive message + routing metadata
       const preset_id   = usingPreset ? (presetSelect.value || "") : null;
       const preset_text = usingPreset ? (presetSelect.options[presetSelect.selectedIndex]?.text || "") : null;
 
-      // message always contains the human-readable text we want GPT to answer
       const message = usingPreset
         ? (preset_text || "").trim()
         : (userInputEl.value || "").trim();
 
-      // extra field for Make router
       const messageMultipleField = usingPreset ? preset_text : null;
 
       const ubn = document.getElementById("ubnInput").value.trim();
       const responseEl = document.getElementById("response");
       const dlRow = document.getElementById("downloadRow");
 
-      // show thinking + hide download buttons until we have a real answer
       responseEl.innerText = "Thinking… answer will appear in 30 seconds.";
       dlRow.style.display = "none";
 
@@ -315,13 +347,11 @@
         const reply = await res.text();
         responseEl.innerText = reply || "No answer received.";
 
-        // Only show download buttons when a real answer is present
         if (reply && reply.trim().length > 0 && reply !== "No answer received.") {
           dlRow.style.display = "flex";
         }
       } catch (err) {
         responseEl.innerText = "Error: " + err.message;
-        // keep buttons hidden on error
       }
     }
 
