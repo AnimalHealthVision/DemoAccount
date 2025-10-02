@@ -37,12 +37,8 @@
       background:#fff;
     }
     .farm-table th, .farm-table td{ border:1px solid #e0e0e0; padding:10px; }
-    .farm-table th{ background:#f3f6f5; color:#007b5e; text-align:left; }
-    .id-block{
-      width:90%; margin:8px auto 0; background:#f6f6f6; padding:12px;
-      border:1px dashed #ccc; border-radius:6px;
-      font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-    }
+    .farm-table th{ background:#f3f6f5; color:#007b5e; text-align:center; }
+    .farm-table td{ text-align:center; }
 
     /* Controls */
     .field-wrap { width:90%; margin:0 auto 10px; }
@@ -128,27 +124,35 @@
       <div class="chat-box">
         <img class="logo" src="ahv-logo.jpg" alt="AHV logo" />
         <h1>Demo account</h1>
-        <h2>In this demo, you can ask questions about the farm, cows, or sales from the past 12 months for farms 406051 (NL), 066526303 (GB), DE010550444423 (DE), and 42213083 (FR).</h2>
 
-        <!-- ✅ Farm identifiers direct onder de uitlegtekst -->
+        <!-- ✅ Tekst opgeschoond: geen ID-lijst meer -->
+        <h2>In this demo, you can ask questions about the farm, cows, or sales from the past 12 months.</h2>
+
+        <!-- ✅ Eén tabel met kolommen per land: NL, GB, DE, FR, BE -->
         <section id="farmIds">
           <h3 style="color:#007b5e; margin:10px 5% 6px;">Farm identifiers</h3>
           <table class="farm-table" aria-label="Farm identifiers per country">
             <thead>
-              <tr><th>Land</th><th>Identifier</th></tr>
+              <tr>
+                <th>NL</th>
+                <th>GB</th>
+                <th>DE</th>
+                <th>FR</th>
+                <th>BE</th>
+              </tr>
             </thead>
             <tbody>
-              <tr><td>Nederland (NL)</td><td>406051</td></tr>
-              <tr><td>Verenigd Koninkrijk (GB)</td><td>066526303</td></tr>
-              <tr><td>Duitsland (DE)</td><td>DE010550444423</td></tr>
-              <tr><td>Frankrijk (FR)</td><td>42213083</td></tr>
+              <tr>
+                <td>406051</td>
+                <td>066526303</td>
+                <td>DE010550444423</td>
+                <td>42213083</td>
+                <td>1102314969</td>
+              </tr>
             </tbody>
           </table>
-          <div class="id-block" aria-label="Identifiers samengevat">
-            NL: 406051 &nbsp;|&nbsp; GB: 066526303 &nbsp;|&nbsp; DE: DE010550444423 &nbsp;|&nbsp; FR: 42213083
-          </div>
         </section>
-        <!-- ✅ einde toevoeging -->
+        <!-- ✅ Einde toevoeging -->
 
         <div class="field-wrap">
           <input id="ubnInput" placeholder="Enter your UBN (farm registration number)..." />
@@ -194,8 +198,6 @@
           <button class="small-btn" onclick="downloadPDF()">Download PDF</button>
         </div>
       </div>
-
-      <!-- (Photo Upload Section disabled) -->
     </div>
   </div>
 
@@ -234,7 +236,23 @@
     const companyName = "TestAccount";
     const companyDescription = document.querySelector('meta[name="company-description"]').content;
 
-    // fixed detectLanguage (correct version, overrides earlier)
+    function detectLanguageFixed(text) {
+      const t = (text || "").trim().toLowerCase();
+      if (!t) return null;
+      const nl=/\b(hoe|waarom|wanneer|welke|met|en|de|het|een|koe|uier|celgetal|omzet|factuur)\b/;
+      const fr=/\b(quoi|pourquoi|quand|le|la|les|des|vache|mamelle|cellules|facture|chiffre)\b/;
+      const de=/\b(was|warum|wann|welche|und|die|der|das|kuh|euter|zellen|rechnung|umsatz)\b/;
+      const en=/\b(what|why|when|which|and|the|cow|udder|cells|invoice|revenue)\b/;
+      if (nl.test(t)) return "nl";
+      if (fr.test(t)) return "fr";
+      if (de.test(t)) return "de";
+      if (en(test(t))) return "en"; // retained (not used)
+      const nav=(navigator.language||navigator.userLanguage||"nl").slice(0,2);
+      if (["nl","en","fr","de"].includes(nav)) return nav;
+      return "nl";
+    }
+
+    // corrected version (used)
     function detectLanguageFixed(text) {
       const t = (text || "").trim().toLowerCase();
       if (!t) return null;
@@ -269,23 +287,19 @@
     async function sendToGPT() {
       const usingPreset = togglePresets.checked;
 
-      // derive message + routing metadata
       const preset_id   = usingPreset ? (presetSelect.value || "") : null;
       const preset_text = usingPreset ? (presetSelect.options[presetSelect.selectedIndex]?.text || "") : null;
 
-      // message always contains the human-readable text we want GPT to answer
       const message = usingPreset
         ? (preset_text || "").trim()
         : (userInputEl.value || "").trim();
 
-      // extra field for Make router
       const messageMultipleField = usingPreset ? preset_text : null;
 
       const ubn = document.getElementById("ubnInput").value.trim();
       const responseEl = document.getElementById("response");
       const dlRow = document.getElementById("downloadRow");
 
-      // show thinking + hide download buttons until we have a real answer
       responseEl.innerText = "Thinking… answer will appear in 30 seconds.";
       dlRow.style.display = "none";
 
@@ -320,13 +334,11 @@
         const reply = await res.text();
         responseEl.innerText = reply || "No answer received.";
 
-        // Only show download buttons when a real answer is present
         if (reply && reply.trim().length > 0 && reply !== "No answer received.") {
           dlRow.style.display = "flex";
         }
       } catch (err) {
         responseEl.innerText = "Error: " + err.message;
-        // keep buttons hidden on error
       }
     }
 
