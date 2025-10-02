@@ -60,6 +60,9 @@
 
     #presetWrap { display:none; }
 
+    /* Make disabled options appear grey across browsers */
+    #presetSelect option[disabled] { color:#9aa0a6; }
+
     pre{
       margin:20px auto 0;
       text-align:left;
@@ -124,7 +127,7 @@
         <img class="logo" src="ahv-logo.jpg" alt="AHV logo" />
         <h1>Demo account</h1>
 
-        <!-- Tekst + tabel -->
+        <!-- Text + table -->
         <h2>In this demo, you can ask questions about the farm, cows, or sales from the past 12 months for the following farms:</h2>
         <table class="farm-table" aria-label="Farm identifiers per country">
           <thead>
@@ -181,7 +184,6 @@
             </tr>
           </tbody>
         </table>
-        <!-- einde -->
 
         <div class="field-wrap">
           <input id="ubnInput" placeholder="Enter your UBN (farm registration number)..." />
@@ -197,7 +199,8 @@
           <select id="presetSelect" aria-label="Suggested questions">
             <option value="">— Choose a preset question —</option>
             <option value="Q1_CrossUpsell">Analyze the last 12 months of orders and herd data; identify missing product families and cross-sell or upsell opportunities.</option>
-            <option value="Q2_SaleChanceThisMonth">Using last order date and revenue trends, estimate the chance of a new sale if I visit this month.</option>
+            <!-- Q2 is visible but disabled -->
+            <option value="Q2_SaleChanceThisMonth" disabled>Q2 — Using last order date and revenue trends, estimate the chance of a new sale if I visit this month (under construction)</option>
             <option value="Q3_DryOff_20_25kg">From the latest MPR, what % of cows expected to dry off in the next 30 days are producing over 20 kg and over 25 kg milk?</option>
             <option value="Q4_FPR_Le60DIM">For cows ≤60 DIM in the latest MPR, what % have FPR ≥1.40 at first and second milk recording?</option>
             <option value="Q5_MilkCurve_0_100DIM">Show the herd’s average milk yield curve from calving to 100 DIM using the last 12 months of MPR data and note any >30% drops.</option>
