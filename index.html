@@ -239,8 +239,13 @@
   <script>
     const PASS_HASH = "234f1d8746bbd3d0b3a236243b96f8c353c7625c4af41f3d86aac4f239a7e2d0"; // SHA-256 of "AHVDemo123!"
 
-    // Één webhook (zoals origineel)
-    const PRIMARY_HOOK_URL = "https://hook.eu2.make.com/u2luxbx3o1wihpsbysz8gelret1x0jze";
+    // Webhooks
+    const PRIMARY_HOOK_URL = "https://hook.eu2.make.com/u2luxbx3o1wihpsbysz8gelret1x0jze"; // Scenario 1
+    const STATUS_HOOK_URL  = "https://hook.eu2.make.com/8dm926y2ted2rqsh7m5ggqg0r6qehfz1"; // Scenario 2 (status)
+
+    // Polling instellingen
+    const POLL_INTERVAL_MS = 5000;   // elke 5 seconden
+    const POLL_TIMEOUT_MS  = 120000; // max 2 minuten wachten
 
     async function sha256Hex(str) {
       const buf = new TextEncoder().encode(str);
@@ -301,6 +306,40 @@
     }
     togglePresets.addEventListener("change", updateMode);
 
+    // Poll helper (Scenario 2)
+    async function pollForFinal(requestId, responseEl, dlRow) {
+      const start = Date.now();
+      while (Date.now() - start < POLL_TIMEOUT_MS) {
+        try {
+          const r = await fetch(STATUS_HOOK_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ request_id: requestId })
+          });
+          const txt = await r.text();
+
+          // probeer JSON; anders plain text
+          let data;
+          try { data = JSON.parse(txt); } catch { data = { status: "completed", result: txt }; }
+
+          if (data && (data.status === "completed" || data.done === true)) {
+            const finalText = typeof data.result === "string"
+              ? data.result
+              : JSON.stringify(data.result ?? data, null, 2);
+
+            // plak ONDER de eerste output
+            responseEl.innerText += `\n\n${finalText}`;
+            dlRow.style.display = "flex";
+            return;
+          }
+        } catch (e) {
+          // stil doorgaan met de volgende poging
+        }
+        await new Promise(res => setTimeout(res, POLL_INTERVAL_MS));
+      }
+      // timeout: niets gevonden — niets plakken
+    }
+
     async function sendToGPT() {
       const usingPreset = togglePresets.checked;
 
@@ -322,6 +361,11 @@
 
       const inputLang = detectLanguageFixed(message);
 
+      // Uniek ID voor koppeling met Scenario 2
+      const requestId = (crypto && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : (Date.now().toString(36) + Math.random().toString(36).slice(2));
+
       try {
         const payload = {
           company_name: companyName,
@@ -332,7 +376,8 @@
           preset_id,
           preset_text,
           input_language: inputLang,
-          ubn: ubn || undefined
+          ubn: ubn || undefined,
+          request_id: requestId            // << belangrijk voor Scenario 2
         };
 
         const headers = {
@@ -342,6 +387,7 @@
           "X-Preset-Id": usingPreset && preset_id ? preset_id : ""
         };
 
+        // Scenario 1
         const res = await fetch(PRIMARY_HOOK_URL, {
           method: "POST",
           headers,
@@ -351,9 +397,9 @@
         const reply = await res.text();
         responseEl.innerText = reply || "No answer received.";
 
-        if (reply && reply.trim().length > 0 && reply !== "No answer received.") {
-          dlRow.style.display = "flex";
-        }
+        // Scenario 2 (poll elke 5s tot completed)
+        pollForFinal(requestId, responseEl, dlRow);
+
       } catch (err) {
         responseEl.innerText = "Error: " + err.message;
       }
