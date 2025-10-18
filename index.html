@@ -214,13 +214,12 @@
   <script>
     const PASS_HASH = "234f1d8746bbd3d0b3a236243b96f8c353c7625c4af41f3d86aac4f239a7e2d0"; // SHA-256 of "AHVDemo123!"
 
-    // Webhook (Scenario 1). Scenario 2 draait server-side en antwoordt via S1 terug.
-    const PRIMARY_HOOK_URL = "https://hook.eu2.make.com/u2luxbx3o1wihpsbysz8gelret1x0jze";
+    // Eerst Scenario 2, daarna Scenario 1
+    const SCENARIO2_URL = "https://hook.eu2.make.com/8dm926y2ted2rqsh7m5ggqg0r6qehfz1";
+    const SCENARIO1_URL = "https://hook.eu2.make.com/u2luxbx3o1wihpsbysz8gelret1x0jze";
 
-    // Type speed (woord-voor-woord)
     const TYPE_SPEED = 25;
-
-    let runIdCounter = 0; // voorkomt "blijven hangen" van oude runs
+    let runIdCounter = 0;
     let currentRunId = 0;
 
     async function sha256Hex(str) {
@@ -315,7 +314,17 @@
       document.getElementById("downloadRow").style.display = "flex";
     }
 
-    /* ===== Eén-call flow (S1 triggert S2 server-side en antwoordt terug) ===== */
+    /* ===== Fetch helper ===== */
+    async function fetchText(url, payload){
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      return await res.text(); // JSON of tekst; we tonen het zoals ontvangen
+    }
+
+    /* ===== Hoofd-flow: S2 -> Thinking -> S1 ===== */
     async function sendToGPT() {
       const usingPreset = togglePresets.checked;
       const preset_id   = usingPreset ? (presetSelect.value || "") : null;
@@ -330,7 +339,7 @@
       const dlRow = document.getElementById("downloadRow");
       const sendBtn = document.getElementById("sendBtn");
 
-      // Reset UI volledig
+      // Reset volledig per run
       currentRunId = ++runIdCounter;
       const myRunId = currentRunId;
       responseEl.textContent = "";
@@ -345,8 +354,8 @@
 
       try {
         const payload = {
-          company_name: companyName,
-          company_description: companyDescription,
+          company_name: "TestAccount",
+          company_description: document.querySelector('meta[name="company-description"]').content,
           message,
           messageMultipleField,
           question_mode: usingPreset ? "preset" : "free",
@@ -357,32 +366,29 @@
           request_id: requestId
         };
 
-        const headers = {
-          "Content-Type": "application/json",
-          "X-User-Language": inputLang || "",
-          "X-Question-Mode": usingPreset ? "preset" : "free",
-          "X-Preset-Id": usingPreset && preset_id ? preset_id : ""
-        };
+        /* === 1) SCENARIO 2 eerst === */
+        // Haal direct het antwoord op van Scenario 2 en toon woord-voor-woord
+        const s2Raw = await fetchText(SCENARIO2_URL, payload);
+        if (myRunId !== currentRunId) return; // geannuleerd
 
-        // === Eén fetch: Scenario 1 → (triggert Scenario 2) → eindantwoord terug naar browser ===
-        const res = await fetch(PRIMARY_HOOK_URL, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(payload)
-        });
-
-        const rawBody = await res.text();
-
-        if (myRunId !== currentRunId) return; // geannuleerd door nieuwe run
         setThinking(false);
+        // pretty print indien JSON
+        let s2Show = s2Raw;
+        try { s2Show = JSON.stringify(JSON.parse(s2Raw), null, 2); } catch {}
+        await typeOut(s2Show, responseEl, { clear: true, speed: TYPE_SPEED });
 
-        // Netjes JSON pretty-printen als het JSON is; anders raw tonen
-        let toShow = rawBody;
-        try {
-          const obj = JSON.parse(rawBody);
-          toShow = JSON.stringify(obj, null, 2);
-        } catch {}
-        await typeOut(toShow, responseEl, { clear: true, speed: TYPE_SPEED });
+        /* === 2) Thinking tot Scenario 1 === */
+        if (myRunId !== currentRunId) return;
+        setThinking(true);
+
+        /* === 3) SCENARIO 1 daarna === */
+        const s1Raw = await fetchText(SCENARIO1_URL, payload);
+        if (myRunId !== currentRunId) return;
+
+        setThinking(false);
+        let s1Show = s1Raw;
+        try { s1Show = JSON.stringify(JSON.parse(s1Raw), null, 2); } catch {}
+        await typeOut(s1Show, responseEl, { clear: false, speed: TYPE_SPEED });
 
       } catch (err) {
         if (myRunId !== currentRunId) return;
