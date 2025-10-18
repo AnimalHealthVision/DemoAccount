@@ -306,13 +306,14 @@
     }
     togglePresets.addEventListener("change", updateMode);
 
-    // Poll helper (Scenario 2) — gebruikt nu de Data Store key i.p.v. request_id
-    async function pollForFinal(dsKey, responseEl, dlRow) {
+    // Poll helper (Scenario 2) — gebruikt nu DS key én request_id
+    async function pollForFinal(dsKey, requestId, responseEl, dlRow) {
       const start = Date.now();
       while (Date.now() - start < POLL_TIMEOUT_MS) {
         try {
-          // Simple request (geen preflight) + key in querystring
-          const r = await fetch(`${STATUS_HOOK_URL}?key=${encodeURIComponent(dsKey)}`, {
+          // Simple request (geen preflight) + parameters in querystring
+          const url = `${STATUS_HOOK_URL}?key=${encodeURIComponent(dsKey)}&request_id=${encodeURIComponent(requestId)}`;
+          const r = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "text/plain" },
             body: "" // body niet nodig
@@ -338,7 +339,7 @@
         }
         await new Promise(res => setTimeout(res, POLL_INTERVAL_MS));
       }
-      // timeout: niets gevonden — niets plakken
+      // timeout: niets extra's
     }
 
     async function sendToGPT() {
@@ -362,7 +363,7 @@
 
       const inputLang = detectLanguageFixed(message);
 
-      // requestId mag blijven (niet meer gebruikt voor polling, maar schaadt niets)
+      // request_id blijft bestaan (handig voor logging en in Scenario 1)
       const requestId = (crypto && crypto.randomUUID)
         ? crypto.randomUUID()
         : (Date.now().toString(36) + Math.random().toString(36).slice(2));
@@ -395,18 +396,27 @@
           body: JSON.stringify(payload)
         });
 
-        // Tekst voor de gebruiker (onveranderd)
-        const reply = await res.text();
-        responseEl.innerText = reply || "No answer received.";
+        // Scenario 1 stuurt nu JSON terug met { result, key, request_id }
+        let data = null;
+        try {
+          data = await res.json();
+        } catch {
+          // fallback als Scenario 1 nog geen JSON geeft
+          const text = await res.text();
+          data = { result: text || "No answer received." };
+        }
 
-        // Haal de Data Store key uit de response headers (X-DS-Key)
-        const dsKey = res.headers.get("X-DS-Key");
+        // Toon het snelle antwoord
+        responseEl.innerText = data.result || "No answer received.";
 
-        // Scenario 2 (poll elke 5s tot completed) — nu met key
-        if (dsKey) {
-          pollForFinal(dsKey, responseEl, dlRow);
+        // Key + request_id doorzetten naar Scenario 2
+        const dsKeyFromS1 = (data && data.key) ? String(data.key) : null;
+        const reqIdFromS1 = (data && data.request_id) ? String(data.request_id) : requestId;
+
+        if (dsKeyFromS1) {
+          pollForFinal(dsKeyFromS1, reqIdFromS1, responseEl, dlRow);
         } else {
-          console.warn("No X-DS-Key header found; skipping status poll.");
+          console.warn("No key from Scenario 1; skipping status poll.");
         }
 
       } catch (err) {
