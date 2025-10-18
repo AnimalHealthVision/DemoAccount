@@ -59,7 +59,6 @@
     .control-row label{ font-size:14px; color:#555; user-select:none; }
 
     #presetWrap { display:none; }
-
     #presetSelect option[disabled] { color:#9aa0a6; }
 
     pre{
@@ -130,57 +129,15 @@
         <h2>In this demo, you can ask questions about the farm, cows, or sales from the past 12 months for the following farms:</h2>
         <table class="farm-table" aria-label="Farm identifiers per country">
           <thead>
-            <tr>
-              <th>NL</th>
-              <th>GB</th>
-              <th>DE</th>
-              <th>FR</th>
-              <th>BE</th>
-            </tr>
+            <tr><th>NL</th><th>GB</th><th>DE</th><th>FR</th><th>BE</th></tr>
           </thead>
           <tbody>
-            <tr>
-              <td>406051</td>
-              <td>027754901</td>
-              <td>033570182014</td>
-              <td>22272100</td>
-              <td>1102314969</td>
-            </tr>
-            <tr>
-              <td>412980</td>
-              <td>066526303</td>
-              <td>141882600093</td>
-              <td>29274489</td>
-              <td>1301704331</td>
-            </tr>
-            <tr>
-              <td>527002</td>
-              <td>901062000</td>
-              <td>143795003300</td>
-              <td>42213083</td>
-              <td>4300202077</td>
-            </tr>
-            <tr>
-              <td>530295</td>
-              <td>901239700</td>
-              <td>160710110010</td>
-              <td>50189022</td>
-              <td>4300605134</td>
-            </tr>
-            <tr>
-              <td>600345</td>
-              <td>902626200</td>
-              <td>DE010550444423</td>
-              <td>50551254</td>
-              <td>4601600477</td>
-            </tr>
-            <tr>
-              <td>6313605</td>
-              <td>909502900</td>
-              <td></td>
-              <td>56144020</td>
-              <td></td>
-            </tr>
+            <tr><td>406051</td><td>027754901</td><td>033570182014</td><td>22272100</td><td>1102314969</td></tr>
+            <tr><td>412980</td><td>066526303</td><td>141882600093</td><td>29274489</td><td>1301704331</td></tr>
+            <tr><td>527002</td><td>901062000</td><td>143795003300</td><td>42213083</td><td>4300202077</td></tr>
+            <tr><td>530295</td><td>901239700</td><td>160710110010</td><td>50189022</td><td>4300605134</td></tr>
+            <tr><td>600345</td><td>902626200</td><td>DE010550444423</td><td>50551254</td><td>4601600477</td></tr>
+            <tr><td>6313605</td><td>909502900</td><td></td><td>56144020</td><td></td></tr>
           </tbody>
         </table>
 
@@ -243,9 +200,9 @@
     const PRIMARY_HOOK_URL = "https://hook.eu2.make.com/u2luxbx3o1wihpsbysz8gelret1x0jze"; // Scenario 1
     const STATUS_HOOK_URL  = "https://hook.eu2.make.com/8dm926y2ted2rqsh7m5ggqg0r6qehfz1"; // Scenario 2 (status)
 
-    // Polling instellingen
-    const POLL_INTERVAL_MS = 5000;   // elke 5 seconden
-    const POLL_TIMEOUT_MS  = 120000; // max 2 minuten wachten
+    // Polling settings
+    const POLL_INTERVAL_MS = 5000;   // every 5s
+    const POLL_TIMEOUT_MS  = 120000; // up to 2 minutes
 
     async function sha256Hex(str) {
       const buf = new TextEncoder().encode(str);
@@ -274,7 +231,7 @@
     const companyName = "TestAccount";
     const companyDescription = document.querySelector('meta[name="company-description"]').content;
 
-    // Language detection (single, working version)
+    // Language detection
     function detectLanguageFixed(text) {
       const t = (text || "").trim().toLowerCase();
       if (!t) return null;
@@ -306,21 +263,19 @@
     }
     togglePresets.addEventListener("change", updateMode);
 
-    // Poll helper (Scenario 2) — gebruikt nu DS key én request_id
+    // Poll helper (Scenario 2)
     async function pollForFinal(dsKey, requestId, responseEl, dlRow) {
       const start = Date.now();
       while (Date.now() - start < POLL_TIMEOUT_MS) {
         try {
-          // Simple request (geen preflight) + parameters in querystring
-          const url = `${STATUS_HOOK_URL}?key=${encodeURIComponent(dsKey)}&request_id=${encodeURIComponent(requestId)}`;
+          const url = `${STATUS_HOOK_URL}?key=${encodeURIComponent(dsKey)}&request_id=${encodeURIComponent(requestId||"")}`;
           const r = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "text/plain" },
-            body: "" // body niet nodig
+            body: "" // no body needed
           });
           const txt = await r.text();
 
-          // probeer JSON; anders plain text (bestaand gedrag behouden)
           let data;
           try { data = JSON.parse(txt); } catch { data = { status: "completed", result: txt }; }
 
@@ -329,17 +284,16 @@
               ? data.result
               : JSON.stringify(data.result ?? data, null, 2);
 
-            // plak ONDER de eerste output
             responseEl.innerText += `\n\n${finalText}`;
             dlRow.style.display = "flex";
             return;
           }
         } catch (e) {
-          console.error("Status poll failed:", e);
+          // continue silently
         }
         await new Promise(res => setTimeout(res, POLL_INTERVAL_MS));
       }
-      // timeout: niets extra's
+      // timeout: leave initial text as-is
     }
 
     async function sendToGPT() {
@@ -363,7 +317,7 @@
 
       const inputLang = detectLanguageFixed(message);
 
-      // request_id blijft bestaan (handig voor logging en in Scenario 1)
+      // request id for tracing
       const requestId = (crypto && crypto.randomUUID)
         ? crypto.randomUUID()
         : (Date.now().toString(36) + Math.random().toString(36).slice(2));
@@ -396,28 +350,37 @@
           body: JSON.stringify(payload)
         });
 
-        // Scenario 1 stuurt nu JSON terug met { result, key, request_id }
-        let data = null;
-        try {
-          data = await res.json();
-        } catch {
-          // fallback als Scenario 1 nog geen JSON geeft
-          const text = await res.text();
-          data = { result: text || "No answer received." };
+        // 1) Try to get key + request id from headers (requires Access-Control-Expose-Headers)
+        let dsKey = res.headers.get("X-DS-Key");
+        let reqId = res.headers.get("X-Request-Id") || requestId;
+
+        // 2) Fallback: try JSON body (if Scenario 1 sends key in the body)
+        if (!dsKey) {
+          try {
+            const data = await res.json();
+            dsKey = data?.key ?? null;
+            reqId = data?.request_id ?? reqId;
+            if (data?.result) responseEl.innerText = data.result; // optional pre-answer
+          } catch {
+            const text = await res.text();
+            if (text) responseEl.innerText = text;
+          }
         }
 
-        // Toon het snelle antwoord
-        responseEl.innerText = data.result || "No answer received.";
-
-        // Key + request_id doorzetten naar Scenario 2
-        const dsKeyFromS1 = (data && data.key) ? String(data.key) : null;
-        const reqIdFromS1 = (data && data.request_id) ? String(data.request_id) : requestId;
-
-        if (dsKeyFromS1) {
-          pollForFinal(dsKeyFromS1, reqIdFromS1, responseEl, dlRow);
-        } else {
-          console.warn("No key from Scenario 1; skipping status poll.");
+        if (!dsKey) {
+          responseEl.innerText = "No key received from Scenario 1.";
+          return;
         }
+
+        // Kick Scenario 2 once (optional, harmless if Scenario 2 already polls on its own)
+        await fetch(`${STATUS_HOOK_URL}?key=${encodeURIComponent(dsKey)}&request_id=${encodeURIComponent(reqId)}`, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: ""
+        });
+
+        // Start polling until completed
+        pollForFinal(String(dsKey), String(reqId), responseEl, dlRow);
 
       } catch (err) {
         responseEl.innerText = "Error: " + err.message;
