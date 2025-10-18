@@ -192,7 +192,7 @@
         </div>
 
         <div class="field-wrap">
-          <button onclick="sendToGPT()">Send</button>
+          <button onclick="sendToGPT()" id="sendBtn">Send</button>
         </div>
 
         <pre id="response">Answer will appear here...</pre>
@@ -224,6 +224,8 @@
 
     // Type speed (zelfde voor S1 en S2)
     const TYPE_SPEED = 25;
+
+    let runIdCounter = 0; // voorkomt 'blijven hangen' van oude runs
 
     async function sha256Hex(str) {
       const buf = new TextEncoder().encode(str);
@@ -289,7 +291,7 @@
       const el = document.getElementById("response");
       if (on) {
         el.classList.add("thinking");
-        if (!el.textContent || el.textContent === "Answer will appear here...") el.textContent = "Thinking";
+        el.textContent = "Thinking";
       } else {
         el.classList.remove("thinking");
       }
@@ -317,30 +319,40 @@
       document.getElementById("downloadRow").style.display = "flex";
     }
 
-    /* ===== Poll Scenario 2: retourneer het HELE antwoord (JSON of tekst) ===== */
-    async function pollForFinal(dsKey, requestId) {
-      if (!dsKey) return null;
+    /* ===== Helpers ===== */
+    async function fetchText(url, payload){
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      return await res.text(); // laat JSON of tekst door zoals het is
+    }
+
+    /* ===== Poll Scenario 2: als jouw S2 een poll is; anders doen we single-call ===== */
+    async function pollForFinalDirect(payload, myRunId) {
       const start = Date.now();
       while (Date.now() - start < POLL_TIMEOUT_MS) {
+        if (myRunId !== currentRunId) return null; // stop als er nieuwe run gestart is
         try {
-          const url = `${STATUS_HOOK_URL}?key=${encodeURIComponent(dsKey)}&request_id=${encodeURIComponent(requestId || "")}`;
-          const r = await fetch(url, { method: "POST", headers: { "Content-Type": "text/plain" }, body: "" });
-          const raw = await r.text();
-
-          // Probeer JSON te parsen; toon dan de HELE structuur mooi geformatteerd
+          const raw = await fetchText(STATUS_HOOK_URL, payload);
+          // Probeer te detecteren of dit al "final" is (hebt je scenario geen status? dan tonen we direct)
           try {
             const obj = JSON.parse(raw);
-            const isDone = (obj && (obj.status === "completed" || obj.done === true));
-            if (isDone) return JSON.stringify(obj, null, 2);
-          } catch {
-            // Geen JSON; neem aan dat het de finale tekst is en geef die terug
+            if (obj && (obj.status === "completed" || obj.done === true || typeof obj.result !== "undefined")) {
+              return JSON.stringify(obj, null, 2);
+            }
+          } catch { 
+            // plain text → direct teruggeven
             if (raw && raw.trim()) return raw;
           }
-        } catch (_) { /* negeren en blijven proberen */ }
-        await new Promise(res => setTimeout(res, POLL_INTERVAL_MS));
+        } catch {}
+        await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
       }
-      return null; // timeout
+      return null;
     }
+
+    let currentRunId = 0;
 
     async function sendToGPT() {
       const usingPreset = togglePresets.checked;
@@ -354,11 +366,15 @@
       const ubn = document.getElementById("ubnInput").value.trim();
       const responseEl = document.getElementById("response");
       const dlRow = document.getElementById("downloadRow");
-      dlRow.style.display = "none";
+      const sendBtn = document.getElementById("sendBtn");
 
-      // Start met Thinking…
-      responseEl.textContent = "Thinking";
+      // === Reset UI volledig ===
+      currentRunId = ++runIdCounter;           // nieuwe run
+      const myRunId = currentRunId;
+      responseEl.textContent = "";             // wis vorige output
+      dlRow.style.display = "none";
       setThinking(true);
+      sendBtn.disabled = true;
 
       const inputLang = detectLanguageFixed(message);
       const requestId = (crypto && crypto.randomUUID)
@@ -367,8 +383,8 @@
 
       try {
         const payload = {
-          company_name: companyName,
-          company_description: companyDescription,
+          company_name: "TestAccount",
+          company_description: document.querySelector('meta[name="company-description"]').content,
           message,
           messageMultipleField,
           question_mode: usingPreset ? "preset" : "free",
@@ -379,68 +395,39 @@
           request_id: requestId
         };
 
-        const headers = {
-          "Content-Type": "application/json",
-          "X-User-Language": inputLang || "",
-          "X-Question-Mode": usingPreset ? "preset" : "free",
-          "X-Preset-Id": usingPreset && preset_id ? preset_id : ""
-        };
+        /* ========= 1) EERST SCENARIO 2 (woord-voor-woord) ========= */
+        // Als jouw S2 een enkele response geeft, kun je direct fetchen:
+        // const s2Raw = await fetchText(STATUS_HOOK_URL, payload);
+        // Als jouw S2 via polling werkt, gebruik de poll helper:
+        const s2Raw = await pollForFinalDirect(payload, myRunId);
+        if (myRunId !== currentRunId) return; // geannuleerd door nieuwe run
 
-        // ==== SCENARIO 1: kickoff ====
-        const res = await fetch(PRIMARY_HOOK_URL, { method: "POST", headers, body: JSON.stringify(payload) });
-
-        // Lees body precies één keer
-        const rawS1 = await res.text();
-        let dataS1 = null;
-        try { dataS1 = JSON.parse(rawS1); } catch (_) {}
-        let dsKey = res.headers.get("X-DS-Key") || null;
-        let reqId = res.headers.get("X-Request-Id") || requestId;
-        if (!dsKey && dataS1 && typeof dataS1 === "object") {
-          dsKey = dataS1.key ?? null;
-          reqId = dataS1.request_id ?? reqId;
-        }
-
-        // Start Scenario 2 polling
-        const pS2 = pollForFinal(String(dsKey || ""), String(reqId || ""));
-
-        // Kick S2 (best effort)
-        if (dsKey) {
-          try {
-            await fetch(`${STATUS_HOOK_URL}?key=${encodeURIComponent(dsKey)}&request_id=${encodeURIComponent(reqId)}`, {
-              method: "POST", headers: { "Content-Type": "text/plain" }, body: ""
-            });
-          } catch (_) {}
-        }
-
-        // === Eerst S2 volledig typen ===
-        const s2Text = await pS2; // wacht op S2 of timeout
         setThinking(false);
-        if (s2Text && s2Text.trim()) {
-          await typeOut(s2Text, responseEl, { clear: true, speed: TYPE_SPEED });
-        }
-
-        // === Dan (weer even Thinking… als nodig) wachten op en tonen van S1 ===
-        let s1Text = "";
-        if (dataS1 && typeof dataS1 === "object") {
-          s1Text = JSON.stringify(dataS1, null, 2); // volledige JSON laten zien
+        if (s2Raw && s2Raw.trim()) {
+          await typeOut(s2Raw, responseEl, { clear: true, speed: TYPE_SPEED });
         } else {
-          s1Text = rawS1 || "";
+          // niets ontvangen → toon niets en ga door
         }
 
-        if (s1Text && s1Text.trim()) {
-          if (s2Text && s2Text.trim()) {
-            setThinking(true);
-            await new Promise(r => setTimeout(r, 600));
-            setThinking(false);
-          }
-          await typeOut(s1Text, responseEl, { clear: !s2Text, speed: TYPE_SPEED });
-        } else if (!s2Text) {
-          await typeOut("Geen antwoord ontvangen van Scenario 1 of 2.", responseEl, { clear: true, speed: TYPE_SPEED });
-        }
+        /* ========= 2) Thinking… kort laten zien ========= */
+        if (myRunId !== currentRunId) return;
+        setThinking(true);
+        await new Promise(r => setTimeout(r, 800));
+        setThinking(false);
+
+        /* ========= 3) DAN SCENARIO 1 (woord-voor-woord) ========= */
+        if (myRunId !== currentRunId) return;
+        const s1Raw = await fetchText(PRIMARY_HOOK_URL, payload);
+        if (myRunId !== currentRunId) return;
+
+        await typeOut(s1Raw, responseEl, { clear: !s2Raw, speed: TYPE_SPEED });
 
       } catch (err) {
+        if (myRunId !== currentRunId) return;
         setThinking(false);
         await typeOut("Error: " + err.message, responseEl, { clear:true, speed: TYPE_SPEED });
+      } finally {
+        if (myRunId === currentRunId) sendBtn.disabled = false;
       }
     }
 
