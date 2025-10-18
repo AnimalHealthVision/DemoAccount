@@ -214,18 +214,14 @@
   <script>
     const PASS_HASH = "234f1d8746bbd3d0b3a236243b96f8c353c7625c4af41f3d86aac4f239a7e2d0"; // SHA-256 of "AHVDemo123!"
 
-    // Webhooks
-    const PRIMARY_HOOK_URL = "https://hook.eu2.make.com/u2luxbx3o1wihpsbysz8gelret1x0jze"; // Scenario 1 (kickoff)
-    const STATUS_HOOK_URL  = "https://hook.eu2.make.com/8dm926y2ted2rqsh7m5ggqg0r6qehfz1"; // Scenario 2 (status/final)
+    // Webhook (Scenario 1). Scenario 2 draait server-side en antwoordt via S1 terug.
+    const PRIMARY_HOOK_URL = "https://hook.eu2.make.com/u2luxbx3o1wihpsbysz8gelret1x0jze";
 
-    // Polling
-    const POLL_INTERVAL_MS = 5000;
-    const POLL_TIMEOUT_MS  = 120000;
-
-    // Type speed (zelfde voor S1 en S2)
+    // Type speed (woord-voor-woord)
     const TYPE_SPEED = 25;
 
-    let runIdCounter = 0; // voorkomt 'blijven hangen' van oude runs
+    let runIdCounter = 0; // voorkomt "blijven hangen" van oude runs
+    let currentRunId = 0;
 
     async function sha256Hex(str) {
       const buf = new TextEncoder().encode(str);
@@ -319,41 +315,7 @@
       document.getElementById("downloadRow").style.display = "flex";
     }
 
-    /* ===== Helpers ===== */
-    async function fetchText(url, payload){
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      return await res.text(); // laat JSON of tekst door zoals het is
-    }
-
-    /* ===== Poll Scenario 2: als jouw S2 een poll is; anders doen we single-call ===== */
-    async function pollForFinalDirect(payload, myRunId) {
-      const start = Date.now();
-      while (Date.now() - start < POLL_TIMEOUT_MS) {
-        if (myRunId !== currentRunId) return null; // stop als er nieuwe run gestart is
-        try {
-          const raw = await fetchText(STATUS_HOOK_URL, payload);
-          // Probeer te detecteren of dit al "final" is (hebt je scenario geen status? dan tonen we direct)
-          try {
-            const obj = JSON.parse(raw);
-            if (obj && (obj.status === "completed" || obj.done === true || typeof obj.result !== "undefined")) {
-              return JSON.stringify(obj, null, 2);
-            }
-          } catch { 
-            // plain text → direct teruggeven
-            if (raw && raw.trim()) return raw;
-          }
-        } catch {}
-        await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
-      }
-      return null;
-    }
-
-    let currentRunId = 0;
-
+    /* ===== Eén-call flow (S1 triggert S2 server-side en antwoordt terug) ===== */
     async function sendToGPT() {
       const usingPreset = togglePresets.checked;
       const preset_id   = usingPreset ? (presetSelect.value || "") : null;
@@ -368,10 +330,10 @@
       const dlRow = document.getElementById("downloadRow");
       const sendBtn = document.getElementById("sendBtn");
 
-      // === Reset UI volledig ===
-      currentRunId = ++runIdCounter;           // nieuwe run
+      // Reset UI volledig
+      currentRunId = ++runIdCounter;
       const myRunId = currentRunId;
-      responseEl.textContent = "";             // wis vorige output
+      responseEl.textContent = "";
       dlRow.style.display = "none";
       setThinking(true);
       sendBtn.disabled = true;
@@ -383,8 +345,8 @@
 
       try {
         const payload = {
-          company_name: "TestAccount",
-          company_description: document.querySelector('meta[name="company-description"]').content,
+          company_name: companyName,
+          company_description: companyDescription,
           message,
           messageMultipleField,
           question_mode: usingPreset ? "preset" : "free",
@@ -395,37 +357,37 @@
           request_id: requestId
         };
 
-        /* ========= 1) EERST SCENARIO 2 (woord-voor-woord) ========= */
-        // Als jouw S2 een enkele response geeft, kun je direct fetchen:
-        // const s2Raw = await fetchText(STATUS_HOOK_URL, payload);
-        // Als jouw S2 via polling werkt, gebruik de poll helper:
-        const s2Raw = await pollForFinalDirect(payload, myRunId);
+        const headers = {
+          "Content-Type": "application/json",
+          "X-User-Language": inputLang || "",
+          "X-Question-Mode": usingPreset ? "preset" : "free",
+          "X-Preset-Id": usingPreset && preset_id ? preset_id : ""
+        };
+
+        // === Eén fetch: Scenario 1 → (triggert Scenario 2) → eindantwoord terug naar browser ===
+        const res = await fetch(PRIMARY_HOOK_URL, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload)
+        });
+
+        const rawBody = await res.text();
+
         if (myRunId !== currentRunId) return; // geannuleerd door nieuwe run
-
-        setThinking(false);
-        if (s2Raw && s2Raw.trim()) {
-          await typeOut(s2Raw, responseEl, { clear: true, speed: TYPE_SPEED });
-        } else {
-          // niets ontvangen → toon niets en ga door
-        }
-
-        /* ========= 2) Thinking… kort laten zien ========= */
-        if (myRunId !== currentRunId) return;
-        setThinking(true);
-        await new Promise(r => setTimeout(r, 800));
         setThinking(false);
 
-        /* ========= 3) DAN SCENARIO 1 (woord-voor-woord) ========= */
-        if (myRunId !== currentRunId) return;
-        const s1Raw = await fetchText(PRIMARY_HOOK_URL, payload);
-        if (myRunId !== currentRunId) return;
-
-        await typeOut(s1Raw, responseEl, { clear: !s2Raw, speed: TYPE_SPEED });
+        // Netjes JSON pretty-printen als het JSON is; anders raw tonen
+        let toShow = rawBody;
+        try {
+          const obj = JSON.parse(rawBody);
+          toShow = JSON.stringify(obj, null, 2);
+        } catch {}
+        await typeOut(toShow, responseEl, { clear: true, speed: TYPE_SPEED });
 
       } catch (err) {
         if (myRunId !== currentRunId) return;
         setThinking(false);
-        await typeOut("Error: " + err.message, responseEl, { clear:true, speed: TYPE_SPEED });
+        await typeOut("Error: " + err.message, responseEl, { clear: true, speed: TYPE_SPEED });
       } finally {
         if (myRunId === currentRunId) sendBtn.disabled = false;
       }
