@@ -311,14 +311,15 @@
       const start = Date.now();
       while (Date.now() - start < POLL_TIMEOUT_MS) {
         try {
-          const r = await fetch(STATUS_HOOK_URL, {
+          // Simple request (geen preflight) + request_id in querystring
+          const r = await fetch(`${STATUS_HOOK_URL}?request_id=${encodeURIComponent(requestId)}`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "text/plain" },
             body: JSON.stringify({ request_id: requestId })
           });
           const txt = await r.text();
 
-          // probeer JSON; anders plain text
+          // probeer JSON; anders plain text (behoudt bestaand gedrag)
           let data;
           try { data = JSON.parse(txt); } catch { data = { status: "completed", result: txt }; }
 
@@ -333,6 +334,7 @@
             return;
           }
         } catch (e) {
+          console.error("Status poll failed:", e);
           // stil doorgaan met de volgende poging
         }
         await new Promise(res => setTimeout(res, POLL_INTERVAL_MS));
