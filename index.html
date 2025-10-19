@@ -314,6 +314,35 @@
       document.getElementById("downloadRow").style.display = "flex";
     }
 
+    /* ===== Helper: strip JSON & fenced code blocks from responses ===== */
+    function removeBalanced(str, open, close){
+      let out = "", depth = 0;
+      for (let i = 0; i < str.length; i++){
+        const ch = str[i];
+        if (ch === open) { depth++; continue; }
+        if (ch === close && depth > 0) { depth--; continue; }
+        if (depth === 0) out += ch;
+      }
+      return out;
+    }
+    function stripJsonBlocks(raw){
+      if (!raw) return "";
+      let t = String(raw);
+
+      // remove fenced code blocks like ```json ... ``` or ``` ... ```
+      t = t.replace(/```[\s\S]*?```/g, "");
+
+      // remove large balanced {...} and [...] blobs
+      t = removeBalanced(t, "{", "}");
+      t = removeBalanced(t, "[", "]");
+
+      // tidy up commas/extra blank lines
+      t = t.replace(/[ \t]*,\s*\n/g, "\n");
+      t = t.replace(/\n{3,}/g, "\n\n");
+
+      return t.trim();
+    }
+
     /* ===== Fetch helper ===== */
     async function fetchText(url, payload){
       const res = await fetch(url, {
@@ -321,7 +350,7 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-      return await res.text(); // JSON of tekst; we tonen het zoals ontvangen
+      return await res.text(); // JSON or text; we'll clean it before showing
     }
 
     /* ===== Hoofd-flow: S2 -> Thinking -> S1 ===== */
@@ -367,14 +396,11 @@
         };
 
         /* === 1) SCENARIO 2 eerst === */
-        // Haal direct het antwoord op van Scenario 2 en toon woord-voor-woord
         const s2Raw = await fetchText(SCENARIO2_URL, payload);
         if (myRunId !== currentRunId) return; // geannuleerd
 
         setThinking(false);
-        // pretty print indien JSON
-        let s2Show = s2Raw;
-        try { s2Show = JSON.stringify(JSON.parse(s2Raw), null, 2); } catch {}
+        const s2Show = stripJsonBlocks(s2Raw);
         await typeOut(s2Show, responseEl, { clear: true, speed: TYPE_SPEED });
 
         /* === 2) Thinking tot Scenario 1 === */
@@ -386,8 +412,7 @@
         if (myRunId !== currentRunId) return;
 
         setThinking(false);
-        let s1Show = s1Raw;
-        try { s1Show = JSON.stringify(JSON.parse(s1Raw), null, 2); } catch {}
+        const s1Show = stripJsonBlocks(s1Raw);
         await typeOut(s1Show, responseEl, { clear: false, speed: TYPE_SPEED });
 
       } catch (err) {
