@@ -104,7 +104,7 @@
       .download-row{ width:100%; }
     }
 
-    /* caret + "Finishing..." animatie */
+    /* caret + "Analyzing..." animatie (bewegende puntjes) */
     .typing-caret::after { content: "▍"; animation: blink 1s steps(1) infinite; }
     @keyframes blink { 50% { opacity: 0; } }
 
@@ -275,28 +275,39 @@
     }
     togglePresets.addEventListener("change", updateMode);
 
-    /* ===== Helpers for "Finishing..." animatie ===== */
-    function showThinking(el, prefixText = "") {
+    /* ===== "Analyzing..." + dynamische puntjes helper ===== */
+    function showAnalyzing(el, prefixText = "") {
       const base = prefixText ? (prefixText + "\n\n") : "";
-      el.textContent = base + "Finishing";
-      el.classList.add("thinking");
+      el.textContent = base + "Analyzing";
+      el.classList.add("thinking"); // zorgt voor bewegende puntjes via CSS
     }
-    function clearThinking(el) {
+    function clearAnalyzing(el) {
       el.classList.remove("thinking");
     }
 
-    /* ===== Aftellen (zonder animatie) ===== */
-    function startPlainCountdown(el, seconds, label, prefixText = "") {
+    /* ===== Aftellen met "Analyzing" + bewegende puntjes =====
+       - Toont: "<prefix>\n\nAnalyzing (Xs)"
+       - Puntjes bewegen continue via .thinking
+       - Na 0s blijft "Analyzing" (zonder "(Xs)") staan met bewegende puntjes,
+         totdat je zelf clearAnalyzing(...) aanroept of de tekst vervangt.
+    */
+    function startAnalyzingCountdown(el, seconds, prefixText = "") {
       let s = seconds;
       const base = prefixText ? (prefixText + "\n\n") : "";
-      el.textContent = base + `${label} ${s}s...`;
+      el.classList.add("thinking");
+      el.textContent = base + `Analyzing (${s}s)`;
+
       const id = setInterval(() => {
         s--;
-        el.textContent = base + `${label} ${s}s...`;
-        if (s <= 0) {
+        if (s > 0) {
+          el.textContent = base + `Analyzing (${s}s)`;
+        } else {
           clearInterval(id);
+          // Laat 'Analyzing' met puntjes doorlopen
+          el.textContent = base + "Analyzing";
         }
       }, 1000);
+
       return id;
     }
 
@@ -376,7 +387,7 @@
       return await res.text();
     }
 
-    /* ===== Parallel flow: run S2 and S1 tegelijk, toon S2 eerst ===== */
+    /* ===== Parallel flow: run S2 en S1 tegelijk, toon S2 eerst ===== */
     async function sendToGPT() {
       const usingPreset = togglePresets.checked;
       const preset_id   = usingPreset ? (presetSelect.value || "") : null;
@@ -395,7 +406,7 @@
       currentRunId = ++runIdCounter;
       const myRunId = currentRunId;
       responseEl.textContent = "";
-      clearThinking(responseEl);
+      clearAnalyzing(responseEl);
       dlRow.style.display = "none";
       sendBtn.disabled = true;
 
@@ -418,52 +429,39 @@
           request_id: requestId
         };
 
-        /* === Start beide scenario's === */
+        /* === Start beide scenario's parallel === */
         let s2Resolved = false;
         const s2Promise = fetchText(SCENARIO2_URL, payload).then(txt => { s2Resolved = true; return txt; });
         const s1Promise = fetchText(SCENARIO1_URL, payload);
 
-        /* === Direct 5s aftellen bij start === */
-        let preCountdownId = startPlainCountdown(responseEl, 5, "Starting in");
-        // Na 5s: als S2 nog niet zichtbaar is -> "Finishing..." met animatie
-        setTimeout(() => {
-          if (myRunId !== currentRunId) return;
-          if (!s2Resolved) { showThinking(responseEl); }
-        }, 5000);
+        /* === 1) Eerste 5s: "Analyzing (Xs)" met puntjes === */
+        let preCountdownId = startAnalyzingCountdown(responseEl, 5);
+        // Na 5s: als S2 nog niet klaar is, blijft "Analyzing" met puntjes doorlopen
+        // (geen extra actie nodig, de helper laat dat staan)
 
-        /* === Wacht tot S2 klaar is (mag ook binnen 5s zijn) === */
+        /* === Wacht tot S2 klaar is (kan ook binnen 5s zijn) === */
         const s2Raw = await s2Promise;
         if (myRunId !== currentRunId) return;
 
-        // Ruim aftellen/animatie op (als die nog loopt)
+        // Ruim eerste countdown op
         clearInterval(preCountdownId);
-        clearThinking(responseEl);
+        // We laten de analyzing-animatie even uitgaan terwijl we S2 typen
+        clearAnalyzing(responseEl);
 
         const s2Show = stripJsonBlocks(s2Raw);
         await typeOut(s2Show, responseEl, { clear: true, speed: TYPE_SPEED });
 
-        /* === Na S2: 15s wachten op S1; daarna "Finishing..." tot klaar === */
+        /* === 2) Na S2: 15s "Analyzing (Xs)" met puntjes voor S1 === */
         if (myRunId !== currentRunId) return;
-
-        let wait15Id = startPlainCountdown(responseEl, 15, "Waiting", s2Show);
-
-        // Als de 15s voorbij zijn en S1 nog niet klaar is: Finishing...
-        let postTimerFired = false;
-        const postTimer = setTimeout(() => {
-          postTimerFired = true;
-          if (myRunId !== currentRunId) return;
-          clearInterval(wait15Id);
-          showThinking(responseEl, s2Show);
-        }, 15000);
+        let wait15Id = startAnalyzingCountdown(responseEl, 15, s2Show);
 
         /* === Wacht op S1 === */
         const s1Raw = await s1Promise;
-        if (myRunId !== currentRunId) { clearInterval(wait15Id); clearTimeout(postTimer); return; }
+        if (myRunId !== currentRunId) { clearInterval(wait15Id); return; }
 
-        // S1 binnen: ruim countdown/animatie op en toon S1
+        // S1 binnen: countdown stoppen, animatie uit, en S1 tonen
         clearInterval(wait15Id);
-        clearTimeout(postTimer);
-        clearThinking(responseEl);
+        clearAnalyzing(responseEl);
 
         responseEl.textContent = s2Show + "\n\n";
         const s1Show = stripJsonBlocks(s1Raw);
@@ -474,7 +472,7 @@
 
       } catch (err) {
         if (myRunId !== currentRunId) return;
-        clearThinking(responseEl);
+        clearAnalyzing(responseEl);
         responseEl.textContent = "Error: " + err.message;
       } finally {
         if (myRunId === currentRunId) sendBtn.disabled = false;
