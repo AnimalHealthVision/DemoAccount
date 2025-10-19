@@ -104,7 +104,7 @@
       .download-row{ width:100%; }
     }
 
-    /* (mag blijven staan; we gebruiken de countdown i.p.v. deze animatie) */
+    /* (optioneel; countdown vervangt thinking) */
     .typing-caret::after { content: "▍"; animation: blink 1s steps(1) infinite; }
     @keyframes blink { 50% { opacity: 0; } }
     .thinking::after { content: " ."; animation: dots 1.2s steps(3, end) infinite; }
@@ -202,7 +202,7 @@
   <script>
     const PASS_HASH = "234f1d8746bbd3d0b3a236243b96f8c353c7625c4af41f3d86aac4f239a7e2d0"; // SHA-256 of "AHVDemo123!"
 
-    // Eerst Scenario 2, daarna Scenario 1
+    // Scenario URLs
     const SCENARIO2_URL = "https://hook.eu2.make.com/8dm926y2ted2rqsh7m5ggqg0r6qehfz1";
     const SCENARIO1_URL = "https://hook.eu2.make.com/u2luxbx3o1wihpsbysz8gelret1x0jze";
 
@@ -213,7 +213,7 @@
     async function sha256Hex(str) {
       const buf = new TextEncoder().encode(str);
       const hash = await crypto.subtle.digest("SHA-256", buf);
-      return [...new Uint8Array(hash)].map(b => b.toString(16)).map(x=>x.padStart(2,"0")).join("");
+      return [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2,"0")).join("");
     }
 
     async function unlock() {
@@ -304,7 +304,7 @@
         }
       }
       el.classList.remove("typing-caret");
-      /* LET OP: geen downloadRow hier tonen — dat doen we pas NA Scenario 1 */
+      /* downloads pas na S1 tonen */
     }
 
     /* ===== Helper: STRICTLY strip JSON & fenced code blocks ===== */
@@ -361,7 +361,7 @@
       return await res.text();
     }
 
-    /* ===== Hoofd-flow: S2 -> Countdown -> S1 ===== */
+    /* ===== Parallel flow: run S2 and S1 at the same time, show S2 first ===== */
     async function sendToGPT() {
       const usingPreset = togglePresets.checked;
       const preset_id   = usingPreset ? (presetSelect.value || "") : null;
@@ -380,7 +380,7 @@
       currentRunId = ++runIdCounter;
       const myRunId = currentRunId;
       responseEl.textContent = "";
-      dlRow.style.display = "none";      // <- downloads verbergen bij start
+      dlRow.style.display = "none";      // downloads verbergen bij start
       sendBtn.disabled = true;
 
       const inputLang = detectLanguageFixed(message);
@@ -402,29 +402,32 @@
           request_id: requestId
         };
 
-        /* === 1) SCENARIO 2 eerst === */
-        const s2Raw = await fetchText(SCENARIO2_URL, payload);
+        /* === Launch both in parallel === */
+        const s2Promise = fetchText(SCENARIO2_URL, payload);
+        const s1Promise = fetchText(SCENARIO1_URL, payload);
+
+        /* === Resolve Scenario 2 first (expected faster) === */
+        const s2Raw = await s2Promise;
         if (myRunId !== currentRunId) return;
 
         const s2Show = stripJsonBlocks(s2Raw);
         await typeOut(s2Show, responseEl, { clear: true, speed: TYPE_SPEED });
 
-        /* === 2) Countdown (15s) i.p.v. Thinking === */
+        /* === Show countdown while S1 is still running === */
         if (myRunId !== currentRunId) return;
         let countdownId = startCountdown(responseEl, s2Show, 15);
 
-        /* === 3) SCENARIO 1 daarna === */
-        const s1Raw = await fetchText(SCENARIO1_URL, payload);
+        /* === Wait for Scenario 1 to finish === */
+        const s1Raw = await s1Promise;
         if (myRunId !== currentRunId) { clearInterval(countdownId); return; }
 
-        // Countdown stoppen en basis (S2) tekst herstellen
         clearInterval(countdownId);
         responseEl.textContent = s2Show + "\n\n";
 
         const s1Show = stripJsonBlocks(s1Raw);
         await typeOut(s1Show, responseEl, { clear: false, speed: TYPE_SPEED });
 
-        // Downloadknoppen pas na S1 tonen
+        // Show download buttons only after full output
         dlRow.style.display = "flex";
 
       } catch (err) {
