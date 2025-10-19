@@ -212,7 +212,8 @@
     const SCENARIO2_URL = "https://hook.eu2.make.com/8dm926y2ted2rqsh7m5ggqg0r6qehfz1";
     const SCENARIO1_URL = "https://hook.eu2.make.com/u2luxbx3o1wihpsbysz8gelret1x0jze";
 
-    const TYPE_SPEED = 25;
+    const TYPE_SPEED = 25;       // basis (gebruikt voor S1)
+    const TYPE_SPEED_S2 = 40;    // langzamer typen voor S2
     let runIdCounter = 0;
     let currentRunId = 0;
 
@@ -285,12 +286,7 @@
       el.classList.remove("thinking");
     }
 
-    /* ===== Aftellen met "Analyzing" + bewegende puntjes =====
-       - Toont: "<prefix>\n\nAnalyzing (Xs)"
-       - Puntjes bewegen continue via .thinking
-       - Na 0s blijft "Analyzing" (zonder "(Xs)") staan met bewegende puntjes,
-         totdat je zelf clearAnalyzing(...) aanroept of de tekst vervangt.
-    */
+    /* ===== Aftellen met "Analyzing" + bewegende puntjes ===== */
     function startAnalyzingCountdown(el, seconds, prefixText = "") {
       let s = seconds;
       const base = prefixText ? (prefixText + "\n\n") : "";
@@ -437,7 +433,6 @@
         /* === 1) Eerste 5s: "Analyzing (Xs)" met puntjes === */
         let preCountdownId = startAnalyzingCountdown(responseEl, 5);
         // Na 5s: als S2 nog niet klaar is, blijft "Analyzing" met puntjes doorlopen
-        // (geen extra actie nodig, de helper laat dat staan)
 
         /* === Wacht tot S2 klaar is (kan ook binnen 5s zijn) === */
         const s2Raw = await s2Promise;
@@ -445,27 +440,26 @@
 
         // Ruim eerste countdown op
         clearInterval(preCountdownId);
-        // We laten de analyzing-animatie even uitgaan terwijl we S2 typen
-        clearAnalyzing(responseEl);
+        clearAnalyzing(responseEl); // animatie uit tijdens typen
 
         const s2Show = stripJsonBlocks(s2Raw);
-        await typeOut(s2Show, responseEl, { clear: true, speed: TYPE_SPEED });
+        await typeOut(s2Show, responseEl, { clear: true, speed: TYPE_SPEED_S2 }); // LANGZAMER S2
 
-        /* === 2) Na S2: 15s "Analyzing (Xs)" met puntjes voor S1 === */
+        /* === 2) Na S2: 10s "Analyzing (Xs)" met puntjes voor S1 === */
         if (myRunId !== currentRunId) return;
-        let wait15Id = startAnalyzingCountdown(responseEl, 15, s2Show);
+        let wait10Id = startAnalyzingCountdown(responseEl, 10, s2Show);
 
         /* === Wacht op S1 === */
         const s1Raw = await s1Promise;
-        if (myRunId !== currentRunId) { clearInterval(wait15Id); return; }
+        if (myRunId !== currentRunId) { clearInterval(wait10Id); return; }
 
         // S1 binnen: countdown stoppen, animatie uit, en S1 tonen
-        clearInterval(wait15Id);
+        clearInterval(wait10Id);
         clearAnalyzing(responseEl);
 
         responseEl.textContent = s2Show + "\n\n";
         const s1Show = stripJsonBlocks(s1Raw);
-        await typeOut(s1Show, responseEl, { clear: false, speed: TYPE_SPEED });
+        await typeOut(s1Show, responseEl, { clear: false, speed: TYPE_SPEED }); // S1 snelheid ONGEWIJZIGD
 
         // Download-knoppen pas na volledige output
         dlRow.style.display = "flex";
