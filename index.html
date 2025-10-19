@@ -75,7 +75,7 @@
     }
 
     .download-row{
-      display:none;
+      display:none; /* <- blijft verborgen tot S1 klaar is */
       width:96%;
       margin:8px auto 0;
       gap:8px;
@@ -104,23 +104,11 @@
       .download-row{ width:100%; }
     }
 
-    /* ===== Typ-effect & Thinking animatie ===== */
-    .typing-caret::after {
-      content: "▍";
-      animation: blink 1s steps(1) infinite;
-    }
+    /* (mag blijven staan; we gebruiken de countdown i.p.v. deze animatie) */
+    .typing-caret::after { content: "▍"; animation: blink 1s steps(1) infinite; }
     @keyframes blink { 50% { opacity: 0; } }
-
-    .thinking::after {
-      content: " .";
-      animation: dots 1.2s steps(3, end) infinite;
-    }
-    @keyframes dots {
-      0% { content: " ."; }
-      33% { content: " .."; }
-      66% { content: " ..."; }
-      100% { content: " ."; }
-    }
+    .thinking::after { content: " ."; animation: dots 1.2s steps(3, end) infinite; }
+    @keyframes dots { 0% { content: " ."; } 33% { content: " .."; } 66% { content: " ..."; } 100% { content: " ."; } }
   </style>
 </head>
 <body>
@@ -197,7 +185,7 @@
 
         <pre id="response">Answer will appear here...</pre>
 
-        <!-- Download buttons (hidden until answer exists) -->
+        <!-- Download buttons (hidden until final response exists) -->
         <div class="download-row" id="downloadRow">
           <button class="small-btn" onclick="downloadDocx()">Download .docx</button>
           <button class="small-btn" onclick="downloadPDF()">Download PDF</button>
@@ -281,13 +269,22 @@
     }
     togglePresets.addEventListener("change", updateMode);
 
-    /* ===== Thinking & type-effect ===== */
-    function setThinking(on) {
-      const el = document.getElementById("response");
-      if (on) { el.classList.add("thinking"); el.textContent = "Thinking"; }
-      else    { el.classList.remove("thinking"); }
+    /* ===== Countdown i.p.v. Thinking ===== */
+    function startCountdown(el, baseText, seconds=15){
+      let s = seconds;
+      el.textContent = (baseText ? (baseText + "\n\n") : "") + `Waiting ${s}s...`;
+      const intId = setInterval(() => {
+        s--;
+        el.textContent = (baseText ? (baseText + "\n\n") : "") + `Waiting ${s}s...`;
+        if (s <= 0) {
+          clearInterval(intId);
+          el.textContent = (baseText ? (baseText + "\n\n") : "") + "Finishing...";
+        }
+      }, 1000);
+      return intId;
     }
 
+    /* ===== Typ-effect ===== */
     async function typeOut(text, el, opts = {}) {
       const speed = opts.speed ?? TYPE_SPEED;
       const clear = opts.clear ?? true;
@@ -307,7 +304,7 @@
         }
       }
       el.classList.remove("typing-caret");
-      document.getElementById("downloadRow").style.display = "flex";
+      /* LET OP: geen downloadRow hier tonen — dat doen we pas NA Scenario 1 */
     }
 
     /* ===== Helper: STRICTLY strip JSON & fenced code blocks ===== */
@@ -330,8 +327,7 @@
               const content = buf;
               const looksJson = content.includes(":") && content.replace(/\s/g,"").length > 40;
               if (!looksJson) out += open + content + close; // keep non-JSON brace text
-              // else drop it
-              continue;
+              continue; // drop JSON-like block
             }
           }
           if (depth > 0) buf += ch; else out += ch;
@@ -365,7 +361,7 @@
       return await res.text();
     }
 
-    /* ===== Hoofd-flow: S2 -> Thinking -> S1 ===== */
+    /* ===== Hoofd-flow: S2 -> Countdown -> S1 ===== */
     async function sendToGPT() {
       const usingPreset = togglePresets.checked;
       const preset_id   = usingPreset ? (presetSelect.value || "") : null;
@@ -384,8 +380,7 @@
       currentRunId = ++runIdCounter;
       const myRunId = currentRunId;
       responseEl.textContent = "";
-      dlRow.style.display = "none";
-      setThinking(true);
+      dlRow.style.display = "none";      // <- downloads verbergen bij start
       sendBtn.disabled = true;
 
       const inputLang = detectLanguageFixed(message);
@@ -411,26 +406,30 @@
         const s2Raw = await fetchText(SCENARIO2_URL, payload);
         if (myRunId !== currentRunId) return;
 
-        setThinking(false);
         const s2Show = stripJsonBlocks(s2Raw);
         await typeOut(s2Show, responseEl, { clear: true, speed: TYPE_SPEED });
 
-        /* === 2) Thinking tot Scenario 1 === */
+        /* === 2) Countdown (15s) i.p.v. Thinking === */
         if (myRunId !== currentRunId) return;
-        setThinking(true);
+        let countdownId = startCountdown(responseEl, s2Show, 15);
 
         /* === 3) SCENARIO 1 daarna === */
         const s1Raw = await fetchText(SCENARIO1_URL, payload);
-        if (myRunId !== currentRunId) return;
+        if (myRunId !== currentRunId) { clearInterval(countdownId); return; }
 
-        setThinking(false);
+        // Countdown stoppen en basis (S2) tekst herstellen
+        clearInterval(countdownId);
+        responseEl.textContent = s2Show + "\n\n";
+
         const s1Show = stripJsonBlocks(s1Raw);
         await typeOut(s1Show, responseEl, { clear: false, speed: TYPE_SPEED });
 
+        // Downloadknoppen pas na S1 tonen
+        dlRow.style.display = "flex";
+
       } catch (err) {
         if (myRunId !== currentRunId) return;
-        setThinking(false);
-        await typeOut("Error: " + err.message, responseEl, { clear: true, speed: TYPE_SPEED });
+        responseEl.textContent = "Error: " + err.message;
       } finally {
         if (myRunId === currentRunId) sendBtn.disabled = false;
       }
