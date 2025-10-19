@@ -104,11 +104,17 @@
       .download-row{ width:100%; }
     }
 
-    /* (optioneel; countdown vervangt thinking) */
+    /* caret + "Finishing..." animatie */
     .typing-caret::after { content: "▍"; animation: blink 1s steps(1) infinite; }
     @keyframes blink { 50% { opacity: 0; } }
+
     .thinking::after { content: " ."; animation: dots 1.2s steps(3, end) infinite; }
-    @keyframes dots { 0% { content: " ."; } 33% { content: " .."; } 66% { content: " ..."; } 100% { content: " ."; } }
+    @keyframes dots {
+      0% { content: " ."; }
+      33% { content: " .."; }
+      66% { content: " ..."; }
+      100% { content: " ."; }
+    }
   </style>
 </head>
 <body>
@@ -269,19 +275,29 @@
     }
     togglePresets.addEventListener("change", updateMode);
 
-    /* ===== Countdown i.p.v. Thinking ===== */
-    function startCountdown(el, baseText, seconds=15){
+    /* ===== Helpers for "Finishing..." animatie ===== */
+    function showThinking(el, prefixText = "") {
+      const base = prefixText ? (prefixText + "\n\n") : "";
+      el.textContent = base + "Finishing";
+      el.classList.add("thinking");
+    }
+    function clearThinking(el) {
+      el.classList.remove("thinking");
+    }
+
+    /* ===== Aftellen (zonder animatie) ===== */
+    function startPlainCountdown(el, seconds, label, prefixText = "") {
       let s = seconds;
-      el.textContent = (baseText ? (baseText + "\n\n") : "") + `Waiting ${s}s...`;
-      const intId = setInterval(() => {
+      const base = prefixText ? (prefixText + "\n\n") : "";
+      el.textContent = base + `${label} ${s}s...`;
+      const id = setInterval(() => {
         s--;
-        el.textContent = (baseText ? (baseText + "\n\n") : "") + `Waiting ${s}s...`;
+        el.textContent = base + `${label} ${s}s...`;
         if (s <= 0) {
-          clearInterval(intId);
-          el.textContent = (baseText ? (baseText + "\n\n") : "") + "Finishing...";
+          clearInterval(id);
         }
       }, 1000);
-      return intId;
+      return id;
     }
 
     /* ===== Typ-effect ===== */
@@ -304,7 +320,6 @@
         }
       }
       el.classList.remove("typing-caret");
-      /* downloads pas na S1 tonen */
     }
 
     /* ===== Helper: STRICTLY strip JSON & fenced code blocks ===== */
@@ -361,7 +376,7 @@
       return await res.text();
     }
 
-    /* ===== Parallel flow: run S2 and S1 at the same time, show S2 first ===== */
+    /* ===== Parallel flow: run S2 and S1 tegelijk, toon S2 eerst ===== */
     async function sendToGPT() {
       const usingPreset = togglePresets.checked;
       const preset_id   = usingPreset ? (presetSelect.value || "") : null;
@@ -380,7 +395,8 @@
       currentRunId = ++runIdCounter;
       const myRunId = currentRunId;
       responseEl.textContent = "";
-      dlRow.style.display = "none";      // downloads verbergen bij start
+      clearThinking(responseEl);
+      dlRow.style.display = "none";
       sendBtn.disabled = true;
 
       const inputLang = detectLanguageFixed(message);
@@ -402,36 +418,63 @@
           request_id: requestId
         };
 
-        /* === Launch both in parallel === */
-        const s2Promise = fetchText(SCENARIO2_URL, payload);
+        /* === Start beide scenario's === */
+        let s2Resolved = false;
+        const s2Promise = fetchText(SCENARIO2_URL, payload).then(txt => { s2Resolved = true; return txt; });
         const s1Promise = fetchText(SCENARIO1_URL, payload);
 
-        /* === Resolve Scenario 2 first (expected faster) === */
+        /* === Direct 5s aftellen bij start === */
+        let preCountdownId = startPlainCountdown(responseEl, 5, "Starting in");
+        // Na 5s: als S2 nog niet zichtbaar is -> "Finishing..." met animatie
+        setTimeout(() => {
+          if (myRunId !== currentRunId) return;
+          if (!s2Resolved) { showThinking(responseEl); }
+        }, 5000);
+
+        /* === Wacht tot S2 klaar is (mag ook binnen 5s zijn) === */
         const s2Raw = await s2Promise;
         if (myRunId !== currentRunId) return;
+
+        // Ruim aftellen/animatie op (als die nog loopt)
+        clearInterval(preCountdownId);
+        clearThinking(responseEl);
 
         const s2Show = stripJsonBlocks(s2Raw);
         await typeOut(s2Show, responseEl, { clear: true, speed: TYPE_SPEED });
 
-        /* === Show countdown while S1 is still running === */
+        /* === Na S2: 15s wachten op S1; daarna "Finishing..." tot klaar === */
         if (myRunId !== currentRunId) return;
-        let countdownId = startCountdown(responseEl, s2Show, 15);
 
-        /* === Wait for Scenario 1 to finish === */
+        let wait15Id = startPlainCountdown(responseEl, 15, "Waiting", s2Show);
+
+        // Als de 15s voorbij zijn en S1 nog niet klaar is: Finishing...
+        let postTimerFired = false;
+        const postTimer = setTimeout(() => {
+          postTimerFired = true;
+          if (myRunId !== currentRunId) return;
+          clearInterval(wait15Id);
+          showThinking(responseEl, s2Show);
+        }, 15000);
+
+        /* === Wacht op S1 === */
         const s1Raw = await s1Promise;
-        if (myRunId !== currentRunId) { clearInterval(countdownId); return; }
+        if (myRunId !== currentRunId) { clearInterval(wait15Id); clearTimeout(postTimer); return; }
 
-        clearInterval(countdownId);
+        // S1 binnen: ruim countdown/animatie op en toon S1
+        clearInterval(wait15Id);
+        clearTimeout(postTimer);
+        clearThinking(responseEl);
+
         responseEl.textContent = s2Show + "\n\n";
-
         const s1Show = stripJsonBlocks(s1Raw);
         await typeOut(s1Show, responseEl, { clear: false, speed: TYPE_SPEED });
 
-        // Show download buttons only after full output
+        // Download-knoppen pas na volledige output
         dlRow.style.display = "flex";
 
       } catch (err) {
         if (myRunId !== currentRunId) return;
+        clearThinking(responseEl);
         responseEl.textContent = "Error: " + err.message;
       } finally {
         if (myRunId === currentRunId) sendBtn.disabled = false;
