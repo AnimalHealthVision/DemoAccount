@@ -104,7 +104,7 @@
       .download-row{ width:100%; }
     }
 
-    /* caret + "Analyzing..." animatie (bewegende puntjes) */
+    /* caret + animaties */
     .typing-caret::after { content: "▍"; animation: blink 1s steps(1) infinite; }
     @keyframes blink { 50% { opacity: 0; } }
 
@@ -276,18 +276,27 @@
     }
     togglePresets.addEventListener("change", updateMode);
 
-    /* ===== "Analyzing..." + dynamische puntjes helper ===== */
+    /* ===== Tekst helpers voor animaties ===== */
     function showAnalyzing(el, prefixText = "") {
       const base = prefixText ? (prefixText + "\n\n") : "";
       el.textContent = base + "Analyzing";
-      el.classList.add("thinking"); // zorgt voor bewegende puntjes via CSS
+      el.classList.add("thinking"); // bewegende puntjes via CSS
     }
-    function clearAnalyzing(el) {
+    function showFinishing(el, prefixText = "") {
+      const base = prefixText ? (prefixText + "\n\n") : "";
+      el.textContent = base + "Finishing";
+      el.classList.add("thinking"); // dezelfde puntjes-animatie
+    }
+    function clearThinking(el) {
       el.classList.remove("thinking");
     }
 
-    /* ===== Aftellen met "Analyzing" + bewegende puntjes ===== */
-    function startAnalyzingCountdown(el, seconds, prefixText = "") {
+    /* ===== Countdown met "Analyzing (Xs)" -> daarna "Finishing..." =====
+       - Toont: "<prefix>\n\nAnalyzing (Xs)" met puntjes
+       - Bij 0s: zet over naar "Finishing" met puntjes en houdt dat vast
+         (caller stopt/overschrijft wanneer scenario klaar is)
+    */
+    function startAnalyzingCountdown(el, seconds, prefixText = "", onDone) {
       let s = seconds;
       const base = prefixText ? (prefixText + "\n\n") : "";
       el.classList.add("thinking");
@@ -299,8 +308,9 @@
           el.textContent = base + `Analyzing (${s}s)`;
         } else {
           clearInterval(id);
-          // Laat 'Analyzing' met puntjes doorlopen
-          el.textContent = base + "Analyzing";
+          // Countdown klaar -> Finishing...
+          if (typeof onDone === "function") onDone();
+          else showFinishing(el, prefixText);
         }
       }, 1000);
 
@@ -402,7 +412,7 @@
       currentRunId = ++runIdCounter;
       const myRunId = currentRunId;
       responseEl.textContent = "";
-      clearAnalyzing(responseEl);
+      clearThinking(responseEl);
       dlRow.style.display = "none";
       sendBtn.disabled = true;
 
@@ -430,32 +440,40 @@
         const s2Promise = fetchText(SCENARIO2_URL, payload).then(txt => { s2Resolved = true; return txt; });
         const s1Promise = fetchText(SCENARIO1_URL, payload);
 
-        /* === 1) Eerste 5s: "Analyzing (Xs)" met puntjes === */
-        let preCountdownId = startAnalyzingCountdown(responseEl, 5);
-        // Na 5s: als S2 nog niet klaar is, blijft "Analyzing" met puntjes doorlopen
+        /* === 1) Eerste 5s: "Analyzing (Xs)" -> daarna "Finishing..." indien S2 nog niet klaar === */
+        const preCountdownId = startAnalyzingCountdown(
+          responseEl,
+          5,
+          "",
+          () => { if (myRunId === currentRunId && !s2Resolved) showFinishing(responseEl); }
+        );
 
         /* === Wacht tot S2 klaar is (kan ook binnen 5s zijn) === */
         const s2Raw = await s2Promise;
         if (myRunId !== currentRunId) return;
 
-        // Ruim eerste countdown op
-        clearInterval(preCountdownId);
-        clearAnalyzing(responseEl); // animatie uit tijdens typen
+        clearInterval(preCountdownId);   // mocht nog lopen
+        clearThinking(responseEl);       // animatie uit tijdens typen
 
         const s2Show = stripJsonBlocks(s2Raw);
         await typeOut(s2Show, responseEl, { clear: true, speed: TYPE_SPEED_S2 }); // LANGZAMER S2
 
-        /* === 2) Na S2: 10s "Analyzing (Xs)" met puntjes voor S1 === */
+        /* === 2) Na S2: 10s "Analyzing (Xs)" -> daarna "Finishing..." tot S1 klaar === */
         if (myRunId !== currentRunId) return;
-        let wait10Id = startAnalyzingCountdown(responseEl, 10, s2Show);
+        const wait10Id = startAnalyzingCountdown(
+          responseEl,
+          10,
+          s2Show,
+          () => { if (myRunId === currentRunId) showFinishing(responseEl, s2Show); }
+        );
 
         /* === Wacht op S1 === */
         const s1Raw = await s1Promise;
         if (myRunId !== currentRunId) { clearInterval(wait10Id); return; }
 
-        // S1 binnen: countdown stoppen, animatie uit, en S1 tonen
+        // S1 binnen: countdown/finishing stoppen en S1 tonen
         clearInterval(wait10Id);
-        clearAnalyzing(responseEl);
+        clearThinking(responseEl);
 
         responseEl.textContent = s2Show + "\n\n";
         const s1Show = stripJsonBlocks(s1Raw);
@@ -466,7 +484,7 @@
 
       } catch (err) {
         if (myRunId !== currentRunId) return;
-        clearAnalyzing(responseEl);
+        clearThinking(responseEl);
         responseEl.textContent = "Error: " + err.message;
       } finally {
         if (myRunId === currentRunId) sendBtn.disabled = false;
