@@ -225,7 +225,7 @@
     async function sha256Hex(str) {
       const buf = new TextEncoder().encode(str);
       const hash = await crypto.subtle.digest("SHA-256", buf);
-      return [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2, "0")).join("");
+      return [...new Uint8Array(hash)].map(b => b.toString(16)).map(x=>x.padStart(2,"0")).join("");
     }
 
     async function unlock() {
@@ -284,12 +284,8 @@
     /* ===== Thinking & type-effect ===== */
     function setThinking(on) {
       const el = document.getElementById("response");
-      if (on) {
-        el.classList.add("thinking");
-        el.textContent = "Thinking";
-      } else {
-        el.classList.remove("thinking");
-      }
+      if (on) { el.classList.add("thinking"); el.textContent = "Thinking"; }
+      else    { el.classList.remove("thinking"); }
     }
 
     async function typeOut(text, el, opts = {}) {
@@ -314,29 +310,45 @@
       document.getElementById("downloadRow").style.display = "flex";
     }
 
-    /* ===== Helper: strip JSON & fenced code blocks from responses ===== */
-    function removeBalanced(str, open, close){
-      let out = "", depth = 0;
-      for (let i = 0; i < str.length; i++){
-        const ch = str[i];
-        if (ch === open) { depth++; continue; }
-        if (ch === close && depth > 0) { depth--; continue; }
-        if (depth === 0) out += ch;
-      }
-      return out;
-    }
+    /* ===== Helper: STRICTLY strip JSON & fenced code blocks ===== */
     function stripJsonBlocks(raw){
       if (!raw) return "";
       let t = String(raw);
 
-      // remove fenced code blocks like ```json ... ``` or ``` ... ```
+      // 1) Remove fenced code blocks like ```json ... ``` or ``` ... ```
       t = t.replace(/```[\s\S]*?```/g, "");
 
-      // remove large balanced {...} and [...] blobs
-      t = removeBalanced(t, "{", "}");
-      t = removeBalanced(t, "[", "]");
+      // 2) Remove only JSON-like balanced {...} and [...] chunks (must contain colon and be long enough)
+      function stripBalancedJson(s, open, close){
+        let out = "", depth = 0, buf = "";
+        for (let i = 0; i < s.length; i++){
+          const ch = s[i];
+          if (ch === open){
+            if (depth++ === 0){ buf = ""; continue; }
+          } else if (ch === close && depth > 0){
+            if (--depth === 0){
+              const content = buf;
+              const looksJson = content.includes(":") && content.replace(/\s/g,"").length > 40;
+              if (!looksJson) out += open + content + close; // keep non-JSON brace text
+              // else drop it
+              continue;
+            }
+          }
+          if (depth > 0) buf += ch; else out += ch;
+        }
+        return out;
+      }
+      t = stripBalancedJson(t, "{", "}");
+      t = stripBalancedJson(t, "[", "]");
 
-      // tidy up commas/extra blank lines
+      // 3) Also drop obvious inline JSON lines (start with { or [ and contain a colon)
+      t = t.split("\n").filter(line => {
+        const trimmed = line.trim();
+        const looksInlineJson = (/^(\{|\[).*(\:).*(\}|\])$/.test(trimmed) && trimmed.length > 20);
+        return !looksInlineJson;
+      }).join("\n");
+
+      // 4) Cleanup
       t = t.replace(/[ \t]*,\s*\n/g, "\n");
       t = t.replace(/\n{3,}/g, "\n\n");
 
@@ -350,7 +362,7 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-      return await res.text(); // JSON or text; we'll clean it before showing
+      return await res.text();
     }
 
     /* ===== Hoofd-flow: S2 -> Thinking -> S1 ===== */
@@ -368,7 +380,7 @@
       const dlRow = document.getElementById("downloadRow");
       const sendBtn = document.getElementById("sendBtn");
 
-      // Reset volledig per run
+      // Reset per run
       currentRunId = ++runIdCounter;
       const myRunId = currentRunId;
       responseEl.textContent = "";
@@ -397,7 +409,7 @@
 
         /* === 1) SCENARIO 2 eerst === */
         const s2Raw = await fetchText(SCENARIO2_URL, payload);
-        if (myRunId !== currentRunId) return; // geannuleerd
+        if (myRunId !== currentRunId) return;
 
         setThinking(false);
         const s2Show = stripJsonBlocks(s2Raw);
