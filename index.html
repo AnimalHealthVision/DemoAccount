@@ -40,7 +40,7 @@
     .farm-table td{ text-align:center; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
 
     /* Controls */
-    .field-wrap { width:90%; margin:0 auto 10px; }
+    .field-wrap { width:90%; margin:0 auto 10px; text-align:left; }
     .field-wrap input,
     .field-wrap button,
     .field-wrap select {
@@ -93,6 +93,11 @@
       cursor:pointer;
     }
     .small-btn:hover{ background:#005c49; }
+
+    /* Hint onder UBN */
+    .hint { font-size:13px; color:#4b5563; margin-top:6px; }
+    .hint .ok { color:#065f46; }
+    .hint .warn { color:#9a3412; }
 
     @media (max-width: 640px) {
       .chat-box{ padding:20px; width:95%; }
@@ -154,7 +159,9 @@
         </table>
 
         <div class="field-wrap">
-          <input id="ubnInput" placeholder="Enter your UBN (farm registration number)..." />
+          <label for="ubnInput" style="display:block;margin-bottom:6px;">Farm registration number (UBN)</label>
+          <input id="ubnInput" placeholder="Enter your UBN (farm registration number)..." inputmode="numeric" />
+          <div id="farmNameHint" class="hint" aria-live="polite"></div>
         </div>
 
         <!-- Free text (shown when presets are OFF) -->
@@ -217,6 +224,92 @@
     let runIdCounter = 0;
     let currentRunId = 0;
 
+    /* =========================
+       UBN → Farm name (CSV)
+       ========================= */
+    const CSV_PATH = "CountryCodes (6).csv"; // zelfde map als index.html
+    const FARM_INDEX = new Map(); // key: ubn (string digits), value: {name, country_code?, ...}
+
+    // Kleine, robuuste CSV parser (ondersteunt quotes & komma's in velden)
+    function parseCSV(text) {
+      const rows = [];
+      let i = 0, field = "", row = [], inQuotes = false;
+      while (i < text.length) {
+        const ch = text[i];
+        if (inQuotes) {
+          if (ch === '"') {
+            if (text[i + 1] === '"') { field += '"'; i += 2; continue; } // escaped quote
+            inQuotes = false; i++; continue;
+          } else { field += ch; i++; continue; }
+        } else {
+          if (ch === '"') { inQuotes = true; i++; continue; }
+          if (ch === ',') { row.push(field); field = ""; i++; continue; }
+          if (ch === '\n' || ch === '\r') {
+            // consume \r\n
+            if (ch === '\r' && text[i + 1] === '\n') i++;
+            row.push(field); rows.push(row); field = ""; row = []; i++; continue;
+          }
+          field += ch; i++;
+        }
+      }
+      // laatste veld/rand
+      if (field.length || row.length) { row.push(field); rows.push(row); }
+      return rows;
+    }
+
+    function normalizeUBN(v) {
+      // Alleen cijfers, geen parseInt (om leading zeros te behouden)
+      return String(v ?? "").replace(/[^\d]/g, "");
+    }
+
+    async function buildFarmIndex() {
+      try {
+        const res = await fetch(CSV_PATH, { cache: "no-store" });
+        if (!res.ok) throw new Error("CSV not found");
+        const text = await res.text();
+        const rows = parseCSV(text).filter(r => r.length && r.some(x => x && String(x).trim().length));
+        if (!rows.length) return;
+
+        // headers
+        const header = rows[0].map(h => String(h).trim().toLowerCase());
+        const ubnIdx   = header.indexOf("ubn");
+        const nameIdx  = header.indexOf("farm_name");
+        const ccIdx    = header.indexOf("country_code");
+        // evt. fallback als naming anders is
+        const nameIdxAlt = nameIdx >= 0 ? nameIdx : header.findIndex(h => /name/i.test(h));
+        const ubnIdxAlt  = ubnIdx  >= 0 ? ubnIdx  : header.findIndex(h => /ubn|id|identifier/i.test(h));
+
+        const u = ubnIdx >= 0 ? ubnIdx : ubnIdxAlt;
+        const n = nameIdx >= 0 ? nameIdx : nameIdxAlt;
+
+        for (let r = 1; r < rows.length; r++) {
+          const cells = rows[r];
+          const key = normalizeUBN(cells[u] ?? "");
+          const name = (cells[n] ?? "").toString().trim();
+          const country = ccIdx >= 0 ? (cells[ccIdx] ?? "").toString().trim() : "";
+          if (key) FARM_INDEX.set(key, { name, country });
+        }
+      } catch (e) {
+        console.warn("Farm index build failed:", e);
+      }
+    }
+
+    function showFarmNameForUBN(rawUBN) {
+      const hint = document.getElementById("farmNameHint");
+      const key = normalizeUBN(rawUBN);
+      if (!key) { hint.textContent = ""; return; }
+
+      const rec = FARM_INDEX.get(key);
+      if (rec && rec.name) {
+        hint.innerHTML = `<span class="ok">( ${rec.name}${rec.country ? " — " + rec.country : ""} )</span>`;
+      } else {
+        hint.innerHTML = `<span class="warn">( UBN onbekend )</span>`;
+      }
+    }
+
+    // Start meteen met laden (mag ook vóór unlock)
+    buildFarmIndex();
+
     async function sha256Hex(str) {
       const buf = new TextEncoder().encode(str);
       const hash = await crypto.subtle.digest("SHA-256", buf);
@@ -266,6 +359,7 @@
     const presetSelect = document.getElementById("presetSelect");
     const userInputWrap= document.getElementById("userInputWrap");
     const userInputEl  = document.getElementById("userInput");
+    const ubnInputEl   = document.getElementById("ubnInput");
 
     function updateMode() {
       const on = togglePresets.checked;
@@ -275,6 +369,10 @@
       else    { presetSelect.value = ""; userInputEl.focus(); }
     }
     togglePresets.addEventListener("change", updateMode);
+
+    // toon boernaam live tijdens typen
+    ubnInputEl.addEventListener("input", (e) => showFarmNameForUBN(e.target.value));
+    ubnInputEl.addEventListener("blur", (e) => showFarmNameForUBN(e.target.value));
 
     /* ===== Tekst helpers voor animaties ===== */
     function showAnalyzing(el, prefixText = "") {
@@ -291,33 +389,24 @@
       el.classList.remove("thinking");
     }
 
-    /* ===== Countdown met "Analyzing (Xs)" -> daarna "Finishing..." =====
-       - Toont: "<prefix>\n\nAnalyzing (Xs)" met puntjes
-       - Bij 0s: zet over naar "Finishing" met puntjes en houdt dat vast
-         (caller stopt/overschrijft wanneer scenario klaar is)
-    */
     function startAnalyzingCountdown(el, seconds, prefixText = "", onDone) {
       let s = seconds;
       const base = prefixText ? (prefixText + "\n\n") : "";
       el.classList.add("thinking");
       el.textContent = base + `Analyzing (${s}s)`;
-
       const id = setInterval(() => {
         s--;
         if (s > 0) {
           el.textContent = base + `Analyzing (${s}s)`;
         } else {
           clearInterval(id);
-          // Countdown klaar -> Finishing...
           if (typeof onDone === "function") onDone();
           else showFinishing(el, prefixText);
         }
       }, 1000);
-
       return id;
     }
 
-    /* ===== Typ-effect ===== */
     async function typeOut(text, el, opts = {}) {
       const speed = opts.speed ?? TYPE_SPEED;
       const clear = opts.clear ?? true;
@@ -344,10 +433,8 @@
       if (!raw) return "";
       let t = String(raw);
 
-      // 1) Remove fenced code blocks like ```json ... ``` or ``` ... ```
       t = t.replace(/```[\s\S]*?```/g, "");
 
-      // 2) Remove only JSON-like balanced {...} and [...] chunks (must contain colon and be long enough)
       function stripBalancedJson(s, open, close){
         let out = "", depth = 0, buf = "";
         for (let i = 0; i < s.length; i++){
@@ -358,8 +445,8 @@
             if (--depth === 0){
               const content = buf;
               const looksJson = content.includes(":") && content.replace(/\s/g,"").length > 40;
-              if (!looksJson) out += open + content + close; // keep non-JSON brace text
-              continue; // drop JSON-like block
+              if (!looksJson) out += open + content + close;
+              continue;
             }
           }
           if (depth > 0) buf += ch; else out += ch;
@@ -369,21 +456,18 @@
       t = stripBalancedJson(t, "{", "}");
       t = stripBalancedJson(t, "[", "]");
 
-      // 3) Also drop obvious inline JSON lines (start with { or [ and contain a colon)
       t = t.split("\n").filter(line => {
         const trimmed = line.trim();
         const looksInlineJson = (/^(\{|\[).*(\:).*(\}|\])$/.test(trimmed) && trimmed.length > 20);
         return !looksInlineJson;
       }).join("\n");
 
-      // 4) Cleanup
       t = t.replace(/[ \t]*,\s*\n/g, "\n");
       t = t.replace(/\n{3,}/g, "\n\n");
 
       return t.trim();
     }
 
-    /* ===== Fetch helper ===== */
     async function fetchText(url, payload){
       const res = await fetch(url, {
         method: "POST",
@@ -403,7 +487,8 @@
                                   : (userInputEl.value || "").trim();
       const messageMultipleField = usingPreset ? preset_text : null;
 
-      const ubn = document.getElementById("ubnInput").value.trim();
+      const ubnRaw = document.getElementById("ubnInput").value;
+      const ubn = normalizeUBN(ubnRaw); // alleen cijfers
       const responseEl = document.getElementById("response");
       const dlRow = document.getElementById("downloadRow");
       const sendBtn = document.getElementById("sendBtn");
@@ -431,7 +516,7 @@
           preset_id,
           preset_text,
           input_language: inputLang,
-          ubn: ubn || undefined,
+          ubn: ubn || undefined,   // ← alleen de UBN gaat mee (farm name NIET)
           request_id: requestId
         };
 
@@ -452,11 +537,11 @@
         const s2Raw = await s2Promise;
         if (myRunId !== currentRunId) return;
 
-        clearInterval(preCountdownId);   // mocht nog lopen
-        clearThinking(responseEl);       // animatie uit tijdens typen
+        clearInterval(preCountdownId);
+        clearThinking(responseEl);
 
         const s2Show = stripJsonBlocks(s2Raw);
-        await typeOut(s2Show, responseEl, { clear: true, speed: TYPE_SPEED_S2 }); // LANGZAMER S2
+        await typeOut(s2Show, responseEl, { clear: true, speed: TYPE_SPEED_S2 });
 
         /* === 2) Na S2: 10s "Analyzing (Xs)" -> daarna "Finishing..." tot S1 klaar === */
         if (myRunId !== currentRunId) return;
@@ -467,19 +552,16 @@
           () => { if (myRunId === currentRunId) showFinishing(responseEl, s2Show); }
         );
 
-        /* === Wacht op S1 === */
         const s1Raw = await s1Promise;
         if (myRunId !== currentRunId) { clearInterval(wait10Id); return; }
 
-        // S1 binnen: countdown/finishing stoppen en S1 tonen
         clearInterval(wait10Id);
         clearThinking(responseEl);
 
         responseEl.textContent = s2Show + "\n\n";
         const s1Show = stripJsonBlocks(s1Raw);
-        await typeOut(s1Show, responseEl, { clear: false, speed: TYPE_SPEED }); // S1 snelheid ONGEWIJZIGD
+        await typeOut(s1Show, responseEl, { clear: false, speed: TYPE_SPEED });
 
-        // Download-knoppen pas na volledige output
         dlRow.style.display = "flex";
 
       } catch (err) {
