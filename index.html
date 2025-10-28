@@ -99,7 +99,7 @@
     .hint .ok { color:#065f46; }
     .hint .warn { color:#9a3412; }
 
-    /* Preview blokken */
+    /* Preview blok */
     .file-preview{ margin-top:10px; text-align:left; font-size:14px; color:#374151; background:#f9fafb; border:1px dashed #d1d5db; padding:10px; border-radius:8px; }
     .file-preview img{ max-width:100%; height:auto; border-radius:6px; }
 
@@ -211,30 +211,17 @@
         </div>
       </div>
 
-      <!-- Use case 3: AHV / Foto Upload Sectie (ACTIEF) -->
+      <!-- Use case 3: AHV / Foto Upload Sectie (enige uploader) -->
       <div class="chat-box" id="photoBox">
         <h2>Upload a photo of the completed treatment card using your phone</h2>
         <div class="field-wrap">
-          <input type="file" id="imageUpload" accept="image/*" />
+          <input type="file" id="imageUpload" accept="image/png,image/jpeg" />
         </div>
         <div class="field-wrap">
           <button onclick="uploadImage()" id="imageBtn">Verstuur</button>
         </div>
         <pre id="imageResponse">Answer will appear here...</pre>
         <div class="file-preview" id="filePreview"></div>
-      </div>
-
-      <!-- Treatment records inlezen (CSV) -->
-      <div class="chat-box" id="treatmentBox">
-        <h2>Upload treatment records (CSV) — zelfde payload-format als use case 1</h2>
-        <div class="field-wrap">
-          <input type="file" id="treatmentUpload" accept=".csv" />
-        </div>
-        <div class="field-wrap">
-          <button onclick="uploadTreatments()" id="treatmentBtn">Verstuur</button>
-        </div>
-        <pre id="treatmentResponse">Answer will appear here...</pre>
-        <div class="file-preview" id="treatmentPreview" aria-live="polite"></div>
       </div>
 
     </div>
@@ -251,9 +238,7 @@
     // Scenario URLs
     const SCENARIO2_URL = "https://hook.eu2.make.com/8dm926y2ted2rqsh7m5ggqg0r6qehfz1";
     const SCENARIO1_URL = "https://hook.eu2.make.com/u2luxbx3o1wihpsbysz8gelret1x0jze";
-    // CSV & Foto uploads gebruiken standaard hetzelfde endpoint als use case 1
-    const TREATMENT_URL = SCENARIO1_URL;
-    const PHOTO_URL = SCENARIO1_URL;
+    const PHOTO_URL = SCENARIO1_URL; // foto-upload gebruikt zelfde endpoint als use case 1
 
     const TYPE_SPEED = 25;       // basis (gebruikt voor S1)
     const TYPE_SPEED_S2 = 40;    // langzamer typen voor S2
@@ -623,7 +608,7 @@
     }
 
     /* ===============================
-       Use case 3: Foto upload (ACTIEF)
+       Use case 3: Foto upload (JPEG/PNG)
        =============================== */
     async function uploadImage() {
       const fileInput = document.getElementById("imageUpload");
@@ -637,7 +622,15 @@
         return;
       }
 
-      // Preview
+      // Bestandscontrole: alleen JPEG/PNG
+      const isAllowedType = /image\/jpeg|image\/png/i.test(file.type)
+        || /\.(jpe?g|png)$/i.test(file.name);
+      if (!isAllowedType) {
+        responseEl.innerText = "Alleen JPEG of PNG is toegestaan.";
+        return;
+      }
+
+      // Preview + upload
       const reader = new FileReader();
       btn.disabled = true;
       responseEl.classList.add("thinking");
@@ -675,72 +668,6 @@
       };
 
       reader.readAsDataURL(file);
-    }
-
-    /* ===============================
-       Treatment CSV upload
-       =============================== */
-    async function uploadTreatments() {
-      const fileInput = document.getElementById("treatmentUpload");
-      const file = fileInput.files && fileInput.files[0];
-      const previewEl = document.getElementById("treatmentPreview");
-      const responseEl = document.getElementById("treatmentResponse");
-      const btn = document.getElementById("treatmentBtn");
-
-      if (!file) {
-        responseEl.innerText = "Geen bestand geselecteerd (.csv).";
-        return;
-      }
-      if (!/\.csv$/i.test(file.name)) {
-        responseEl.innerText = "Alleen .csv wordt ondersteund in deze demo.";
-        return;
-      }
-
-      // UBN (optioneel) meenemen zoals bij use case 1
-      const ubn = normalizeUBN(document.getElementById("ubnInput").value);
-      const requestId = (crypto && crypto.randomUUID)
-        ? crypto.randomUUID()
-        : (Date.now().toString(36) + Math.random().toString(36).slice(2));
-
-      btn.disabled = true;
-      responseEl.classList.add("thinking");
-      responseEl.innerText = "Analyzing (10s)";
-
-      try {
-        const text = await file.text();
-
-        // Korte preview van de eerste ~10 regels
-        const previewLines = text.split(/\r?\n/).slice(0, 10).join("\n");
-        previewEl.innerHTML = `<strong>Preview (${file.name}):</strong>\n<pre style="white-space:pre-wrap;margin:8px 0 0">${previewLines}</pre>`;
-
-        // Optioneel: lichte validatie op headers (pas aan indien nodig)
-        const [headerRow] = text.split(/\r?\n/, 1);
-        const headerCheckOk = /date|treatment|cow/i.test(headerRow || "");
-        if (!headerCheckOk) {
-          // Alleen waarschuwing; upload kan nog steeds door
-          previewEl.innerHTML += `<div style="margin-top:8px;color:#9a3412;">Let op: geen standaard headers gevonden (verwacht bv. 'Date, CowID, Treatment, Dose').</div>`;
-        }
-
-        // Zelfde payload-structuur als de eerste use case
-        const payload = {
-          company_name: "TestAccount",
-          company_description: document.querySelector('meta[name="company-description"]').content,
-          message: "Treatment records uploaded",
-          ubn: ubn || undefined,
-          request_id: requestId,
-          treatment_records_csv: text,
-          file_name: file.name
-        };
-
-        const reply = await fetchText(TREATMENT_URL, payload);
-        responseEl.classList.remove("thinking");
-        responseEl.innerText = stripJsonBlocks(reply) || "Geen antwoord ontvangen.";
-      } catch (err) {
-        responseEl.classList.remove("thinking");
-        responseEl.innerText = "Fout: " + err.message;
-      } finally {
-        btn.disabled = false;
-      }
     }
   </script>
 </body>
