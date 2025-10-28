@@ -75,7 +75,7 @@
     }
 
     .download-row{
-      display:none; /* <- blijft verborgen tot S1 klaar is */
+      display:none; /* blijft verborgen tot S1 klaar is */
       width:96%;
       margin:8px auto 0;
       gap:8px;
@@ -112,7 +112,6 @@
     /* caret + animaties */
     .typing-caret::after { content: "▍"; animation: blink 1s steps(1) infinite; }
     @keyframes blink { 50% { opacity: 0; } }
-
     .thinking::after { content: " ."; animation: dots 1.2s steps(3, end) infinite; }
     @keyframes dots {
       0% { content: " ."; }
@@ -259,6 +258,7 @@
     }
 
     function normalizeUBN(v) {
+      // Alleen cijfers, geen parseInt (leading zeros behouden)
       return String(v ?? "").replace(/[^\d]/g, "");
     }
 
@@ -270,10 +270,12 @@
         const rows = parseCSV(text).filter(r => r.length && r.some(x => x && String(x).trim().length));
         if (!rows.length) return;
 
+        // headers
         const header = rows[0].map(h => String(h).trim().toLowerCase());
         const ubnIdx   = header.indexOf("ubn");
         const nameIdx  = header.indexOf("farm_name");
         const ccIdx    = header.indexOf("country_code");
+        // evt. fallback als naming anders is
         const nameIdxAlt = nameIdx >= 0 ? nameIdx : header.findIndex(h => /name/i.test(h));
         const ubnIdxAlt  = ubnIdx  >= 0 ? ubnIdx  : header.findIndex(h => /ubn|id|identifier/i.test(h));
 
@@ -296,6 +298,7 @@
       const hint = document.getElementById("farmNameHint");
       const key = normalizeUBN(rawUBN);
       if (!key) { hint.textContent = ""; return; }
+
       const rec = FARM_INDEX.get(key);
       if (rec && rec.name) {
         hint.innerHTML = `<span class="ok">( ${rec.name}${rec.country ? " — " + rec.country : ""} )</span>`;
@@ -304,7 +307,7 @@
       }
     }
 
-    // Start meteen met laden
+    // Start meteen met laden (mag ook vóór unlock)
     buildFarmIndex();
 
     async function sha256Hex(str) {
@@ -331,26 +334,6 @@
     document.getElementById("enter").addEventListener("click", unlock);
     document.getElementById("pw").addEventListener("keydown", e => { if (e.key === "Enter") unlock(); });
 
-    const companyName = "TestAccount";
-    const companyDescription = document.querySelector('meta[name="company-description"]').content;
-
-    // Language detection
-    function detectLanguageFixed(text) {
-      const t = (text || "").trim().toLowerCase();
-      if (!t) return null;
-      const nl=/\b(hoe|waarom|wanneer|welke|met|en|de|het|een|koe|uier|celgetal|omzet|factuur)\b/;
-      const fr=/\b(quoi|pourquoi|quand|le|la|les|des|vache|mamelle|cellules|facture|chiffre)\b/;
-      const de=/\b(was|warum|wann|welche|und|die|der|das|kuh|euter|zellen|rechnung|umsatz)\b/;
-      const en=/\b(what|why|when|which|and|the|cow|udder|cells|invoice|revenue)\b/;
-      if (nl.test(t)) return "nl";
-      if (fr.test(t)) return "fr";
-      if (de.test(t)) return "de";
-      if (en.test(t)) return "en";
-      const nav=(navigator.language||navigator.userLanguage||"nl").slice(0,2);
-      if (["nl","en","fr","de"].includes(nav)) return nav;
-      return "nl";
-    }
-
     const togglePresets = document.getElementById("togglePresets");
     const presetWrap   = document.getElementById("presetWrap");
     const presetSelect = document.getElementById("presetSelect");
@@ -375,12 +358,12 @@
     function showAnalyzing(el, prefixText = "") {
       const base = prefixText ? (prefixText + "\n\n") : "";
       el.textContent = base + "Analyzing";
-      el.classList.add("thinking");
+      el.classList.add("thinking"); // bewegende puntjes via CSS
     }
     function showFinishing(el, prefixText = "") {
       const base = prefixText ? (prefixText + "\n\n") : "";
       el.textContent = base + "Finishing";
-      el.classList.add("thinking");
+      el.classList.add("thinking"); // dezelfde puntjes-animatie
     }
     function clearThinking(el) {
       el.classList.remove("thinking");
@@ -405,7 +388,7 @@
     }
 
     async function typeOut(text, el, opts = {}) {
-      const speed = opts.speed ?? TYPE_SPEED;
+      const speed = opts.speed ?? 25;
       const clear = opts.clear ?? true;
       const content = String(text ?? "");
       if (clear) el.textContent = "";
@@ -430,8 +413,10 @@
       if (!raw) return "";
       let t = String(raw);
 
+      // 1) Remove fenced code blocks like ```json ... ``` or ``` ... ```
       t = t.replace(/```[\s\S]*?```/g, "");
 
+      // 2) Remove only JSON-like balanced {...} and [...] chunks (must contain colon and be long enough)
       function stripBalancedJson(s, open, close){
         let out = "", depth = 0, buf = "";
         for (let i = 0; i < s.length; i++){
@@ -442,8 +427,8 @@
             if (--depth === 0){
               const content = buf;
               const looksJson = content.includes(":") && content.replace(/\s/g,"").length > 40;
-              if (!looksJson) out += open + content + close;
-              continue;
+              if (!looksJson) out += open + content + close; // keep non-JSON brace text
+              continue; // drop JSON-like block
             }
           }
           if (depth > 0) buf += ch; else out += ch;
@@ -453,12 +438,14 @@
       t = stripBalancedJson(t, "{", "}");
       t = stripBalancedJson(t, "[", "]");
 
+      // 3) Also drop obvious inline JSON lines
       t = t.split("\n").filter(line => {
         const trimmed = line.trim();
         const looksInlineJson = (/^(\{|\[).*(\:).*(\}|\])$/.test(trimmed) && trimmed.length > 20);
         return !looksInlineJson;
       }).join("\n");
 
+      // Cleanup
       t = t.replace(/[ \t]*,\s*\n/g, "\n");
       t = t.replace(/\n{3,}/g, "\n\n");
 
@@ -498,7 +485,6 @@
       dlRow.style.display = "none";
       sendBtn.disabled = true;
 
-      const inputLang = detectLanguageFixed(message);
       const requestId = (crypto && crypto.randomUUID)
         ? crypto.randomUUID()
         : (Date.now().toString(36) + Math.random().toString(36).slice(2));
@@ -512,15 +498,17 @@
           question_mode: usingPreset ? "preset" : "free",
           preset_id,
           preset_text,
-          input_language: inputLang,
-          ubn: ubn || undefined,   // ← alleen de UBN gaat mee
+          // GEEN input_language meer — taalherkenning gebeurt in ChatGPT-module
+          ubn: ubn || undefined,
           request_id: requestId
         };
 
+        /* === Start beide scenario's parallel === */
         let s2Resolved = false;
         const s2Promise = fetchText(SCENARIO2_URL, payload).then(txt => { s2Resolved = true; return txt; });
         const s1Promise = fetchText(SCENARIO1_URL, payload);
 
+        /* === 1) Eerste 5s: "Analyzing (Xs)" -> daarna "Finishing..." indien S2 nog niet klaar === */
         const preCountdownId = startAnalyzingCountdown(
           responseEl,
           5,
@@ -528,15 +516,17 @@
           () => { if (myRunId === currentRunId && !s2Resolved) showFinishing(responseEl); }
         );
 
+        /* === Wacht tot S2 klaar is === */
         const s2Raw = await s2Promise;
         if (myRunId !== currentRunId) return;
 
-        clearInterval(preCountdownId);
-        clearThinking(responseEl);
+        clearInterval(preCountdownId);   // mocht nog lopen
+        clearThinking(responseEl);       // animatie uit tijdens typen
 
         const s2Show = stripJsonBlocks(s2Raw);
-        await typeOut(s2Show, responseEl, { clear: true, speed: TYPE_SPEED_S2 });
+        await typeOut(s2Show, responseEl, { clear: true, speed: TYPE_SPEED_S2 }); // langzamer S2
 
+        /* === 2) Na S2: 10s "Analyzing (Xs)" -> daarna "Finishing..." tot S1 klaar === */
         if (myRunId !== currentRunId) return;
         const wait10Id = startAnalyzingCountdown(
           responseEl,
@@ -545,6 +535,7 @@
           () => { if (myRunId === currentRunId) showFinishing(responseEl, s2Show); }
         );
 
+        /* === Wacht op S1 === */
         const s1Raw = await s1Promise;
         if (myRunId !== currentRunId) { clearInterval(wait10Id); return; }
 
@@ -555,6 +546,7 @@
         const s1Show = stripJsonBlocks(s1Raw);
         await typeOut(s1Show, responseEl, { clear: false, speed: TYPE_SPEED });
 
+        // Download-knoppen pas na volledige output
         dlRow.style.display = "flex";
 
       } catch (err) {
