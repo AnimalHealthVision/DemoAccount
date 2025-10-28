@@ -242,6 +242,8 @@
 
     const TYPE_SPEED = 25;       // basis (gebruikt voor S1)
     const TYPE_SPEED_S2 = 40;    // langzamer typen voor S2
+    const S2_COUNTDOWN_SECONDS = 30; // NIEUW: S2 telt nu 30s af
+
     let runIdCounter = 0;
     let currentRunId = 0;
 
@@ -527,10 +529,10 @@
         const s2Promise = fetchText(SCENARIO2_URL, payload).then(txt => { s2Resolved = true; return txt; });
         const s1Promise = fetchText(SCENARIO1_URL, payload);
 
-        /* === 1) Eerste 5s: "Analyzing (Xs)" -> daarna "Finishing..." indien S2 nog niet klaar === */
+        /* === 1) Eerste 30s: "Analyzing (Xs)" -> daarna "Finishing..." indien S2 nog niet klaar === */
         const preCountdownId = startAnalyzingCountdown(
           responseEl,
-          5,
+          S2_COUNTDOWN_SECONDS,
           "",
           () => { if (myRunId === currentRunId && !s2Resolved) showFinishing(responseEl); }
         );
