@@ -149,17 +149,20 @@
             <tr><th>NL</th><th>GB</th><th>DE</th><th>FR</th><th>BE</th></tr>
           </thead>
           <tbody>
-            <tr><td>406051</td><td>027754901</td><td>033570182014</td><td>22272100</td><td>1102314969</td></tr>
-            <tr><td>412980</td><td>066526303</td><td>141882600093</td><td>29274489</td><td>1301704331</td></tr>
-            <tr><td>527002</td><td>901062000</td><td>143795003300</td><td>42213083</td><td>4300202077</td></tr>
-            <tr><td>530295</td><td>901239700</td><td>160710110010</td><td>50189022</td><td>4300605134</td></tr>
-            <tr><td>600345</td><td>902626200</td><td>DE010550444423</td><td>50551254</td><td>4601600477</td></tr>
-            <tr><td>6313605</td><td>909502900</td><td></td><td>56144020</td><td></td></tr>
+            <tr><td>314112</td><td>027754901</td><td>010580072684</td><td>08124015</td><td>1102314969</td></tr>
+            <tr><td>358800</td><td>066526303</td><td>033570182014</td><td>22272100</td><td>1301704331</td></tr>
+            <tr><td>406051</td><td>086437501</td><td>1060756328</td><td>29208090</td><td>3701568500</td></tr>
+            <tr><td>407225</td><td>146648201</td><td>141730700340</td><td>29274489</td><td>3800205069</td></tr>
+            <tr><td>412980</td><td>901062000</td><td>141882600093</td><td>35072016</td><td>4300202077</td></tr>
+            <tr><td>473008</td><td>901216100</td><td>141932900947</td><td>42213083</td><td>4300605134</td></tr>
+            <tr><td>527002</td><td>901239700</td><td>143795003300</td><td>50189022</td><td>4601600477</td></tr>
+            <tr><td>530295</td><td>902194200</td><td>160710110010</td><td>50551254</td><td>4602800954</td></tr>
+            <tr><td>600345</td><td>902626200</td><td>DE010550444423</td><td>56144020</td><td>7300109357</td></tr>
+            <tr><td>6313605</td><td>909502900</td><td></td><td>59241037</td><td></td></tr>
           </tbody>
         </table>
 
         <div class="field-wrap">
-          <!-- GEEN label meer -->
           <input id="ubnInput" placeholder="Enter your UBN (farm registration number)..." inputmode="numeric" />
           <div id="farmNameHint" class="hint" aria-live="polite"></div>
         </div>
@@ -293,7 +296,6 @@
       const hint = document.getElementById("farmNameHint");
       const key = normalizeUBN(rawUBN);
       if (!key) { hint.textContent = ""; return; }
-
       const rec = FARM_INDEX.get(key);
       if (rec && rec.name) {
         hint.innerHTML = `<span class="ok">( ${rec.name}${rec.country ? " — " + rec.country : ""} )</span>`;
