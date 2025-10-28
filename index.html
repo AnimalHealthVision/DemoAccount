@@ -242,8 +242,6 @@
 
     const TYPE_SPEED = 25;       // basis (gebruikt voor S1)
     const TYPE_SPEED_S2 = 40;    // langzamer typen voor S2
-    const S2_COUNTDOWN_SECONDS = 30; // NIEUW: S2 telt nu 30s af
-
     let runIdCounter = 0;
     let currentRunId = 0;
 
@@ -279,7 +277,6 @@
     }
 
     function normalizeUBN(v) {
-      // Alleen cijfers, geen parseInt (leading zeros behouden)
       return String(v ?? "").replace(/[^\d]/g, "");
     }
 
@@ -291,12 +288,10 @@
         const rows = parseCSV(text).filter(r => r.length && r.some(x => x && String(x).trim().length));
         if (!rows.length) return;
 
-        // headers
         const header = rows[0].map(h => String(h).trim().toLowerCase());
         const ubnIdx   = header.indexOf("ubn");
         const nameIdx  = header.indexOf("farm_name");
         const ccIdx    = header.indexOf("country_code");
-        // evt. fallback als naming anders is
         const nameIdxAlt = nameIdx >= 0 ? nameIdx : header.findIndex(h => /name/i.test(h));
         const ubnIdxAlt  = ubnIdx  >= 0 ? ubnIdx  : header.findIndex(h => /ubn|id|identifier/i.test(h));
 
@@ -328,7 +323,6 @@
       }
     }
 
-    // Start meteen met laden (mag ook vóór unlock)
     buildFarmIndex();
 
     async function sha256Hex(str) {
@@ -371,7 +365,6 @@
     }
     togglePresets.addEventListener("change", updateMode);
 
-    // toon boernaam live tijdens typen
     ubnInputEl.addEventListener("input", (e) => showFarmNameForUBN(e.target.value));
     ubnInputEl.addEventListener("blur", (e) => showFarmNameForUBN(e.target.value));
 
@@ -379,12 +372,12 @@
     function showAnalyzing(el, prefixText = "") {
       const base = prefixText ? (prefixText + "\n\n") : "";
       el.textContent = base + "Analyzing";
-      el.classList.add("thinking"); // bewegende puntjes via CSS
+      el.classList.add("thinking");
     }
     function showFinishing(el, prefixText = "") {
       const base = prefixText ? (prefixText + "\n\n") : "";
       el.textContent = base + "Finishing";
-      el.classList.add("thinking"); // dezelfde puntjes-animatie
+      el.classList.add("thinking");
     }
     function clearThinking(el) {
       el.classList.remove("thinking");
@@ -434,10 +427,8 @@
       if (!raw) return "";
       let t = String(raw);
 
-      // 1) Remove fenced code blocks like ```json ... ``` or ``` ... ```
       t = t.replace(/```[\s\S]*?```/g, "");
 
-      // 2) Remove only JSON-like balanced {...} and [...] chunks (must contain colon and be long enough)
       function stripBalancedJson(s, open, close){
         let out = "", depth = 0, buf = "";
         for (let i = 0; i < s.length; i++){
@@ -448,8 +439,8 @@
             if (--depth === 0){
               const content = buf;
               const looksJson = content.includes(":") && content.replace(/\s/g,"").length > 40;
-              if (!looksJson) out += open + content + close; // keep non-JSON brace text
-              continue; // drop JSON-like block
+              if (!looksJson) out += open + content + close;
+              continue;
             }
           }
           if (depth > 0) buf += ch; else out += ch;
@@ -459,14 +450,12 @@
       t = stripBalancedJson(t, "{", "}");
       t = stripBalancedJson(t, "[", "]");
 
-      // 3) Also drop obvious inline JSON lines
       t = t.split("\n").filter(line => {
         const trimmed = line.trim();
         const looksInlineJson = (/^(\{|\[).*(\:).*(\}|\])$/.test(trimmed) && trimmed.length > 20);
         return !looksInlineJson;
       }).join("\n");
 
-      // Cleanup
       t = t.replace(/[ \t]*,\s*\n/g, "\n");
       t = t.replace(/\n{3,}/g, "\n\n");
 
@@ -493,12 +482,11 @@
       const messageMultipleField = usingPreset ? preset_text : null;
 
       const ubnRaw = document.getElementById("ubnInput").value;
-      const ubn = normalizeUBN(ubnRaw); // alleen cijfers
+      const ubn = normalizeUBN(ubnRaw);
       const responseEl = document.getElementById("response");
       const dlRow = document.getElementById("downloadRow");
       const sendBtn = document.getElementById("sendBtn");
 
-      // Reset per run
       currentRunId = ++runIdCounter;
       const myRunId = currentRunId;
       responseEl.textContent = "";
@@ -519,7 +507,6 @@
           question_mode: usingPreset ? "preset" : "free",
           preset_id,
           preset_text,
-          // GEEN input_language meer — taalherkenning gebeurt in ChatGPT-module
           ubn: ubn || undefined,
           request_id: requestId
         };
@@ -529,10 +516,10 @@
         const s2Promise = fetchText(SCENARIO2_URL, payload).then(txt => { s2Resolved = true; return txt; });
         const s1Promise = fetchText(SCENARIO1_URL, payload);
 
-        /* === 1) Eerste 30s: "Analyzing (Xs)" -> daarna "Finishing..." indien S2 nog niet klaar === */
+        /* === 1) Eerste 5s: "Analyzing (Xs)" -> daarna "Finishing..." indien S2 nog niet klaar === */
         const preCountdownId = startAnalyzingCountdown(
           responseEl,
-          S2_COUNTDOWN_SECONDS,
+          5,
           "",
           () => { if (myRunId === currentRunId && !s2Resolved) showFinishing(responseEl); }
         );
@@ -541,11 +528,11 @@
         const s2Raw = await s2Promise;
         if (myRunId !== currentRunId) return;
 
-        clearInterval(preCountdownId);   // mocht nog lopen
-        clearThinking(responseEl);       // animatie uit tijdens typen
+        clearInterval(preCountdownId);
+        clearThinking(responseEl);
 
         const s2Show = stripJsonBlocks(s2Raw);
-        await typeOut(s2Show, responseEl, { clear: true, speed: TYPE_SPEED_S2 }); // langzamer S2
+        await typeOut(s2Show, responseEl, { clear: true, speed: TYPE_SPEED_S2 });
 
         /* === 2) Na S2: 10s "Analyzing (Xs)" -> daarna "Finishing..." tot S1 klaar === */
         if (myRunId !== currentRunId) return;
@@ -567,7 +554,6 @@
         const s1Show = stripJsonBlocks(s1Raw);
         await typeOut(s1Show, responseEl, { clear: false, speed: TYPE_SPEED });
 
-        // Download-knoppen pas na volledige output
         dlRow.style.display = "flex";
 
       } catch (err) {
@@ -624,7 +610,6 @@
         return;
       }
 
-      // Bestandscontrole: alleen JPEG/PNG
       const isAllowedType = /image\/jpeg|image\/png/i.test(file.type)
         || /\.(jpe?g|png)$/i.test(file.name);
       if (!isAllowedType) {
@@ -635,18 +620,24 @@
       // Preview + upload
       const reader = new FileReader();
       btn.disabled = true;
-      responseEl.classList.add("thinking");
-      responseEl.innerText = "Analyzing (10s)";
 
       reader.onload = async function(e) {
         const base64Image = e.target.result; // data URL
         previewEl.innerHTML = `<strong>Je upload:</strong><br><img src="${base64Image}" alt="Upload preview" />`;
 
-        // UBN meenemen (zelfde patroon als use case 1)
         const ubn = normalizeUBN(document.getElementById("ubnInput").value);
         const requestId = (crypto && crypto.randomUUID)
           ? crypto.randomUUID()
           : (Date.now().toString(36) + Math.random().toString(36).slice(2));
+
+        // NIEUW: 30s aftellen (dynamische bolletjes), daarna "Finishing ..." totdat antwoord binnen is
+        let replyResolved = false;
+        const countdownId = startAnalyzingCountdown(
+          responseEl,
+          30,
+          "",
+          () => { if (!replyResolved) showFinishing(responseEl); }
+        );
 
         try {
           const payload = {
@@ -659,10 +650,14 @@
           };
 
           const reply = await fetchText(PHOTO_URL, payload);
-          responseEl.classList.remove("thinking");
+          replyResolved = true;
+          clearInterval(countdownId);
+          clearThinking(responseEl);
           responseEl.innerText = stripJsonBlocks(reply) || "Geen antwoord ontvangen.";
         } catch (err) {
-          responseEl.classList.remove("thinking");
+          replyResolved = true;
+          clearInterval(countdownId);
+          clearThinking(responseEl);
           responseEl.innerText = "Fout: " + err.message;
         } finally {
           btn.disabled = false;
