@@ -159,7 +159,7 @@
         </table>
 
         <div class="field-wrap">
-          <label for="ubnInput" style="display:block;margin-bottom:6px;">Farm registration number (UBN)</label>
+          <!-- GEEN label meer -->
           <input id="ubnInput" placeholder="Enter your UBN (farm registration number)..." inputmode="numeric" />
           <div id="farmNameHint" class="hint" aria-live="polite"></div>
         </div>
@@ -245,20 +245,17 @@
           if (ch === '"') { inQuotes = true; i++; continue; }
           if (ch === ',') { row.push(field); field = ""; i++; continue; }
           if (ch === '\n' || ch === '\r') {
-            // consume \r\n
             if (ch === '\r' && text[i + 1] === '\n') i++;
             row.push(field); rows.push(row); field = ""; row = []; i++; continue;
           }
           field += ch; i++;
         }
       }
-      // laatste veld/rand
       if (field.length || row.length) { row.push(field); rows.push(row); }
       return rows;
     }
 
     function normalizeUBN(v) {
-      // Alleen cijfers, geen parseInt (om leading zeros te behouden)
       return String(v ?? "").replace(/[^\d]/g, "");
     }
 
@@ -270,12 +267,10 @@
         const rows = parseCSV(text).filter(r => r.length && r.some(x => x && String(x).trim().length));
         if (!rows.length) return;
 
-        // headers
         const header = rows[0].map(h => String(h).trim().toLowerCase());
         const ubnIdx   = header.indexOf("ubn");
         const nameIdx  = header.indexOf("farm_name");
         const ccIdx    = header.indexOf("country_code");
-        // evt. fallback als naming anders is
         const nameIdxAlt = nameIdx >= 0 ? nameIdx : header.findIndex(h => /name/i.test(h));
         const ubnIdxAlt  = ubnIdx  >= 0 ? ubnIdx  : header.findIndex(h => /ubn|id|identifier/i.test(h));
 
@@ -307,7 +302,7 @@
       }
     }
 
-    // Start meteen met laden (mag ook vóór unlock)
+    // Start meteen met laden
     buildFarmIndex();
 
     async function sha256Hex(str) {
@@ -378,12 +373,12 @@
     function showAnalyzing(el, prefixText = "") {
       const base = prefixText ? (prefixText + "\n\n") : "";
       el.textContent = base + "Analyzing";
-      el.classList.add("thinking"); // bewegende puntjes via CSS
+      el.classList.add("thinking");
     }
     function showFinishing(el, prefixText = "") {
       const base = prefixText ? (prefixText + "\n\n") : "";
       el.textContent = base + "Finishing";
-      el.classList.add("thinking"); // dezelfde puntjes-animatie
+      el.classList.add("thinking");
     }
     function clearThinking(el) {
       el.classList.remove("thinking");
@@ -516,16 +511,14 @@
           preset_id,
           preset_text,
           input_language: inputLang,
-          ubn: ubn || undefined,   // ← alleen de UBN gaat mee (farm name NIET)
+          ubn: ubn || undefined,   // ← alleen de UBN gaat mee
           request_id: requestId
         };
 
-        /* === Start beide scenario's parallel === */
         let s2Resolved = false;
         const s2Promise = fetchText(SCENARIO2_URL, payload).then(txt => { s2Resolved = true; return txt; });
         const s1Promise = fetchText(SCENARIO1_URL, payload);
 
-        /* === 1) Eerste 5s: "Analyzing (Xs)" -> daarna "Finishing..." indien S2 nog niet klaar === */
         const preCountdownId = startAnalyzingCountdown(
           responseEl,
           5,
@@ -533,7 +526,6 @@
           () => { if (myRunId === currentRunId && !s2Resolved) showFinishing(responseEl); }
         );
 
-        /* === Wacht tot S2 klaar is (kan ook binnen 5s zijn) === */
         const s2Raw = await s2Promise;
         if (myRunId !== currentRunId) return;
 
@@ -543,7 +535,6 @@
         const s2Show = stripJsonBlocks(s2Raw);
         await typeOut(s2Show, responseEl, { clear: true, speed: TYPE_SPEED_S2 });
 
-        /* === 2) Na S2: 10s "Analyzing (Xs)" -> daarna "Finishing..." tot S1 klaar === */
         if (myRunId !== currentRunId) return;
         const wait10Id = startAnalyzingCountdown(
           responseEl,
