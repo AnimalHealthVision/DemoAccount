@@ -235,6 +235,9 @@
           <button onclick="uploadImage()" id="imageBtn">Verstuur</button>
         </div>
         <pre id="imageResponse">Answer will appear here...</pre>
+        <!-- ✅ NIEUW: handmatige editor-knop -->
+        <button id="openEditorFromImage" class="small-btn">Open editor</button>
+
         <div class="file-preview" id="filePreview"></div>
 
         <!-- CSV Editor -->
@@ -906,6 +909,26 @@
 
       reader.readAsDataURL(file);
     }
+  </script>
+
+  <!-- ✅ NIEUW: handmatige editor openen op basis van getoonde output -->
+  <script>
+    function openEditorFrom(preId){
+      const raw = document.getElementById(preId)?.innerText || "";
+      const csv = extractCsvFromWebhookRaw(raw) || raw;
+      const matrix = csvToMatrix(csv);
+      if (matrix && matrix.length > 1) {
+        renderCsvEditor(matrix);
+        document.getElementById("csvEditorWrap").scrollIntoView({ behavior: "smooth" });
+      } else {
+        alert("Geen CSV gevonden om te bewerken.");
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const btnImg = document.getElementById("openEditorFromImage");
+      if (btnImg) btnImg.onclick = () => openEditorFrom("imageResponse");
+    });
   </script>
 </body>
 </html>
