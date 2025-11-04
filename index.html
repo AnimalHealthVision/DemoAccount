@@ -75,7 +75,7 @@
     }
 
     .download-row{
-      display:none; /* blijft verborgen tot S1 klaar is */
+      display:none;
       width:96%;
       margin:8px auto 0;
       gap:8px;
@@ -137,6 +137,9 @@
     .status-chip{ font-size:13px; padding:6px 8px; border-radius:16px; background:#f1f5f9; color:#0f172a; display:none; }
     .status-chip.ok{ background:#e6f6f1; color:#065f46; }
     .status-chip.err{ background:#fdecec; color:#991b1b; }
+
+    /* selectie style voor rij */
+    .row-selected { background:#fff7ed !important; }
   </style>
 </head>
 <body>
@@ -249,6 +252,7 @@
             </div>
             <div class="editor-actions">
               <button id="addRowBtn" class="small-btn" style="background:#2563eb; border-color:#1d4ed8;">Add row</button>
+              <button id="deleteRowBtn" class="small-btn" style="background:#ef4444; border-color:#dc2626;">Delete row</button>
               <button id="confirmCsvBtn" class="small-btn">Confirm (download CSV)</button>
               <button id="submitCsvBtn" class="small-btn" style="background:#0b5; border-color:#0a6b55;">Submit treatment record</button>
               <span id="submitStatus" class="status-chip">Status</span>
@@ -277,8 +281,8 @@
     // Corrections (treatment record) webhook
     const CORRECTION_URL = "https://hook.eu2.make.com/n16792joe3us6eo41o4x9efbj9r582c6";
 
-    const TYPE_SPEED = 25;       // basis (gebruikt voor S1)
-    const TYPE_SPEED_S2 = 40;    // langzamer typen voor S2
+    const TYPE_SPEED = 25;
+    const TYPE_SPEED_S2 = 40;
     let runIdCounter = 0;
     let currentRunId = 0;
 
@@ -286,7 +290,7 @@
        UBN → Farm name (CSV)
        ========================= */
     const CSV_PATH = "CountryCodes (6).csv"; // zelfde map als index.html
-    const FARM_INDEX = new Map(); // key: ubn (string digits), value: {name, country_code?, ...}
+    const FARM_INDEX = new Map(); // key: ubn, value: {name, country}
 
     function parseCSV(text) {
       const rows = [];
@@ -539,9 +543,18 @@
     // --- CSV editor state ---
     let CSV_MATRIX = null;
     let CSV_HEADERS = null;
+    let SELECTED_ROW_INDEX = null; // 1-based (1 = eerste data-rij), 0 = header
 
-    // Welke kolommen zijn JA/NEE (alles behalve deze drie):
     const NON_TOGGLE_COLUMNS = new Set(["KOE NUMMER","DATUM","OPMERKINGEN"]);
+
+    function bindRowSelection(tr, dataRowIndex){ // dataRowIndex = r (1..n) corresponderend met CSV_MATRIX
+      tr.addEventListener("click", () => {
+        const tbody = tr.parentElement;
+        [...tbody.children].forEach(row => row.classList.remove("row-selected"));
+        tr.classList.add("row-selected");
+        SELECTED_ROW_INDEX = dataRowIndex;
+      });
+    }
 
     function renderCsvEditor(matrix){
       if (!matrix || !matrix.length) return;
@@ -551,6 +564,7 @@
 
       CSV_MATRIX = matrix.map(r => [...r]); // clone
       CSV_HEADERS = CSV_MATRIX[0].map(h => String(h).trim());
+      SELECTED_ROW_INDEX = null;
 
       // Thead
       const thead = document.createElement("thead");
@@ -591,6 +605,7 @@
           }
           tr.appendChild(td);
         });
+        bindRowSelection(tr, r);
         tbody.appendChild(tr);
       }
       table.appendChild(tbody);
@@ -606,7 +621,6 @@
         const newRow = CSV_HEADERS.map(h => NON_TOGGLE_COLUMNS.has(h) ? "" : "NEE");
         CSV_MATRIX.push(newRow);
 
-        // append one new row without full re-render
         const tr = document.createElement("tr");
         CSV_HEADERS.forEach((h, cIdx) => {
           const td = document.createElement("td");
@@ -624,14 +638,35 @@
             inp.type = "text";
             inp.value = "";
             inp.addEventListener("input", (e) => {
-              // last row index
               CSV_MATRIX[CSV_MATRIX.length - 1][cIdx] = e.target.value;
             });
             td.appendChild(inp);
           }
           tr.appendChild(td);
         });
+        bindRowSelection(tr, CSV_MATRIX.length - 1);
         table.querySelector("tbody").appendChild(tr);
+      };
+
+      // Delete row handler (verwijdert geselecteerde data-rij)
+      document.getElementById("deleteRowBtn").onclick = () => {
+        if (SELECTED_ROW_INDEX === null || SELECTED_ROW_INDEX <= 0) {
+          alert("Select a data row to delete.");
+          return;
+        }
+        // bescherm header
+        if (SELECTED_ROW_INDEX === 0) {
+          alert("Header cannot be deleted.");
+          return;
+        }
+        // Verwijder uit data & uit DOM
+        CSV_MATRIX.splice(SELECTED_ROW_INDEX, 1);
+        const tbodyEl = table.querySelector("tbody");
+        // tbody index = SELECTED_ROW_INDEX - 1
+        if (tbodyEl && tbodyEl.rows[SELECTED_ROW_INDEX - 1]) {
+          tbodyEl.deleteRow(SELECTED_ROW_INDEX - 1);
+        }
+        SELECTED_ROW_INDEX = null;
       };
 
       document.getElementById("confirmCsvBtn").onclick = () => {
@@ -663,7 +698,6 @@
         ? crypto.randomUUID()
         : (Date.now().toString(36) + Math.random().toString(36).slice(2));
 
-      // renamed semantic "type"
       const basePayload = {
         type: "treatment_record",
         request_id: requestId,
@@ -777,10 +811,8 @@
         const s2Show = stripJsonBlocks(s2Raw);
         await typeOut(s2Show, responseEl, { clear: true, speed: TYPE_SPEED_S2 });
 
-        // probeer CSV uit S2 te halen
         tryRenderCsvFromReply(s2Raw);
 
-        // Wachten op S1
         if (myRunId !== currentRunId) return;
         const wait10Id = startAnalyzingCountdown(
           responseEl,
@@ -799,7 +831,6 @@
         const s1Show = stripJsonBlocks(s1Raw);
         await typeOut(s1Show, responseEl, { clear: false, speed: TYPE_SPEED });
 
-        // probeer CSV uit S1 te halen (kan nieuwer/definitiever zijn)
         tryRenderCsvFromReply(s1Raw);
 
         dlRow.style.display = "flex";
@@ -822,7 +853,6 @@
           return true;
         }
       }
-      // geen CSV gevonden → verberg editor
       document.getElementById("csvEditorWrap").style.display = "none";
       return false;
     }
@@ -868,7 +898,6 @@
       const btn = document.getElementById("imageBtn");
       const openBtn = document.getElementById("openEditorFromImage");
 
-      // hide button until we have output
       openBtn.style.display = "none";
 
       if (!file) {
@@ -883,20 +912,20 @@
         return;
       }
 
-      // Preview + upload
       const reader = new FileReader();
       btn.disabled = true;
 
       reader.onload = async function(e) {
         const base64Image = e.target.result; // data URL
-        previewEl.innerHTML = `<strong>Je upload:</strong><br><img src="${base64Image}" alt="Upload preview" />`;
+        /* ▼▼ AANGEPAST: engels tekst ▼▼ */
+        previewEl.innerHTML = `<strong>Your upload:</strong><br><img src="${base64Image}" alt="Upload preview" />`;
 
         const ubn = normalizeUBN(document.getElementById("ubnInput").value);
         const requestId = (crypto && crypto.randomUUID)
           ? crypto.randomUUID()
           : (Date.now().toString(36) + Math.random().toString(36).slice(2));
 
-        // Use case 3: 40s countdown (was 30s)
+        // 40s countdown
         let replyResolved = false;
         const countdownId = startAnalyzingCountdown(
           responseEl,
@@ -905,7 +934,6 @@
           () => { if (!replyResolved) showFinishing(responseEl); }
         );
 
-        // Verberg editor totdat we CSV hebben
         document.getElementById("csvEditorWrap").style.display = "none";
 
         try {
@@ -923,13 +951,10 @@
           clearInterval(countdownId);
           clearThinking(responseEl);
 
-          // Toon ruwe tekst
           responseEl.innerText = stripJsonBlocks(reply) || "Geen antwoord ontvangen.";
 
-          // ✅ Nu pas de "Open editor" knop tonen (output is er)
           openBtn.style.display = "inline-block";
 
-          // Probeer CSV uit webhook response halen en editor tonen (auto)
           const ok = tryRenderCsvFromReply(reply);
           if (!ok) {
             document.getElementById("csvEditorWrap").style.display = "none";
@@ -939,8 +964,6 @@
           clearInterval(countdownId);
           clearThinking(responseEl);
           responseEl.innerText = "Fout: " + err.message;
-
-          // bij fout: knop verborgen laten
           openBtn.style.display = "none";
           document.getElementById("csvEditorWrap").style.display = "none";
         } finally {
