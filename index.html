@@ -211,7 +211,7 @@
         </div>
       </div>
 
-      <!-- Use case 3: AHV / Foto Upload Sectie (enige uploader) -->
+      <!-- Use case 3: AHV / Foto Upload Sectie -->
       <div class="chat-box" id="photoBox">
         <h2>Upload a photo of the completed treatment card using your phone</h2>
         <div class="field-wrap">
@@ -222,6 +222,9 @@
         </div>
         <pre id="imageResponse">Answer will appear here...</pre>
         <div class="file-preview" id="filePreview"></div>
+
+        <!-- Behandelkaart output-container -->
+        <div id="treatmentContainer" style="margin-top:16px;text-align:left;"></div>
       </div>
 
     </div>
@@ -235,13 +238,15 @@
   <script>
     const PASS_HASH = "234f1d8746bbd3d0b3a236243b96f8c353c7625c4af41f3d86aac4f239a7e2d0"; // SHA-256 of "AHVDemo123!"
 
-    // Scenario URLs
+    /* ====== CONFIG: webhook endpoints ====== */
     const SCENARIO2_URL = "https://hook.eu2.make.com/8dm926y2ted2rqsh7m5ggqg0r6qehfz1";
     const SCENARIO1_URL = "https://hook.eu2.make.com/u2luxbx3o1wihpsbysz8gelret1x0jze";
-    const PHOTO_URL = SCENARIO1_URL; // foto-upload gebruikt zelfde endpoint als use case 1
+    const PHOTO_URL     = SCENARIO1_URL; // foto-upload gebruikt dit endpoint
+    /* Wanneer je i.p.v. download het CSV terug naar Make wilt sturen, vul dan CSV_POST_URL in: */
+    const CSV_POST_URL  = ""; // bv: "https://hook.eu2.make.com/your-webhook-id" of leeg laten voor download
 
-    const TYPE_SPEED = 25;       // basis (gebruikt voor S1)
-    const TYPE_SPEED_S2 = 40;    // langzamer typen voor S2
+    const TYPE_SPEED = 25;       // basis (S1)
+    const TYPE_SPEED_S2 = 40;    // langzamer typen (S2)
     let runIdCounter = 0;
     let currentRunId = 0;
 
@@ -251,7 +256,6 @@
     const CSV_PATH = "CountryCodes (6).csv"; // zelfde map als index.html
     const FARM_INDEX = new Map(); // key: ubn (string digits), value: {name, country_code?, ...}
 
-    // Kleine, robuuste CSV parser (ondersteunt quotes & komma's in velden)
     function parseCSV(text) {
       const rows = [];
       let i = 0, field = "", row = [], inQuotes = false;
@@ -259,7 +263,7 @@
         const ch = text[i];
         if (inQuotes) {
           if (ch === '"') {
-            if (text[i + 1] === '"') { field += '"'; i += 2; continue; } // escaped quote
+            if (text[i + 1] === '"') { field += '"'; i += 2; continue; }
             inQuotes = false; i++; continue;
           } else { field += ch; i++; continue; }
         } else {
@@ -422,13 +426,11 @@
       el.classList.remove("typing-caret");
     }
 
-    /* ===== Helper: STRICTLY strip JSON & fenced code blocks ===== */
+    /* ===== Helper: STRICT JSON/code-stripper voor S1/S2 tekstvelden ===== */
     function stripJsonBlocks(raw){
       if (!raw) return "";
       let t = String(raw);
-
       t = t.replace(/```[\s\S]*?```/g, "");
-
       function stripBalancedJson(s, open, close){
         let out = "", depth = 0, buf = "";
         for (let i = 0; i < s.length; i++){
@@ -449,16 +451,13 @@
       }
       t = stripBalancedJson(t, "{", "}");
       t = stripBalancedJson(t, "[", "]");
-
       t = t.split("\n").filter(line => {
         const trimmed = line.trim();
         const looksInlineJson = (/^(\{|\[).*(\:).*(\}|\])$/.test(trimmed) && trimmed.length > 20);
         return !looksInlineJson;
       }).join("\n");
-
       t = t.replace(/[ \t]*,\s*\n/g, "\n");
       t = t.replace(/\n{3,}/g, "\n\n");
-
       return t.trim();
     }
 
@@ -511,12 +510,10 @@
           request_id: requestId
         };
 
-        /* === Start beide scenario's parallel === */
         let s2Resolved = false;
         const s2Promise = fetchText(SCENARIO2_URL, payload).then(txt => { s2Resolved = true; return txt; });
         const s1Promise = fetchText(SCENARIO1_URL, payload);
 
-        /* === 1) Eerste 5s: "Analyzing (Xs)" -> daarna "Finishing..." indien S2 nog niet klaar === */
         const preCountdownId = startAnalyzingCountdown(
           responseEl,
           5,
@@ -524,7 +521,6 @@
           () => { if (myRunId === currentRunId && !s2Resolved) showFinishing(responseEl); }
         );
 
-        /* === Wacht tot S2 klaar is === */
         const s2Raw = await s2Promise;
         if (myRunId !== currentRunId) return;
 
@@ -534,7 +530,6 @@
         const s2Show = stripJsonBlocks(s2Raw);
         await typeOut(s2Show, responseEl, { clear: true, speed: TYPE_SPEED_S2 });
 
-        /* === 2) Na S2: 10s "Analyzing (Xs)" -> daarna "Finishing..." tot S1 klaar === */
         if (myRunId !== currentRunId) return;
         const wait10Id = startAnalyzingCountdown(
           responseEl,
@@ -543,7 +538,6 @@
           () => { if (myRunId === currentRunId) showFinishing(responseEl, s2Show); }
         );
 
-        /* === Wacht op S1 === */
         const s1Raw = await s1Promise;
         if (myRunId !== currentRunId) { clearInterval(wait10Id); return; }
 
@@ -595,9 +589,204 @@
       doc.save("answer.pdf");
     }
 
-    /* ===============================
-       Use case 3: Foto upload (JPEG/PNG)
-       =============================== */
+    /* =======================================================
+       USE CASE 3 — BEHANDELKAART (foto → JSON → CSV → tabel)
+       ======================================================= */
+
+    /* EXACTE kolomvolgorde zoals je vroeg (inclusief duplicaten) */
+    const FIXED_HEADERS = [
+      "KOE NUMMER","DATUM","PROACTIEF","ACTIEF","REACTIEF",
+      "MÉTRI TABLET","STARTLAC PASTE","LIQUID ASPI","TABLET ASPI",
+      "TABLET BOOSTER","POWDER BOOSTER","PASTE BOOSTER",
+      "EXTRA TABLET","QUICK TABLET","TABLET BOOSTER","POWDER BOOSTER","PASTE BOOSTER",
+      "TABLET STARTLAC","PASTE STARTLAC","PROLIFE-S","QS SPRAY","CIRQ SUPPORT GEL",
+      "LIQUID ASPI","TABLET ASPI","OPMERKINGEN"
+    ];
+
+    /* alle JA/NEE kolommen (alles behalve koe nr, datum, opmerkingen) */
+    const BOOL_COLS = new Set(FIXED_HEADERS.filter(h => !["KOE NUMMER","DATUM","OPMERKINGEN"].includes(h)));
+    const YES="JA", NO="NEE";
+
+    /* CSV parser voor de kaart (tolerant) */
+    function parseTreatmentCsv(csv){
+      const lines = csv.trim().split(/\r?\n/);
+      const rows = lines.map(r=>{
+        const out=[]; // simpele CSV split met quotes
+        let i=0, inQ=false, cell="";
+        while(i<r.length){
+          const ch=r[i];
+          if(inQ){
+            if(ch==='"' && r[i+1]==='"'){ cell+='"'; i+=2; continue; }
+            if(ch==='"'){ inQ=false; i++; continue; }
+            cell+=ch; i++; continue;
+          }else{
+            if(ch==='"'){ inQ=true; i++; continue; }
+            if(ch===','){ out.push(cell); cell=""; i++; continue; }
+            cell+=ch; i++; continue;
+          }
+        }
+        out.push(cell);
+        return out;
+      });
+      const header = rows.shift() || [];
+      return { header, rows };
+    }
+
+    /* Lees CSV uit nested JSON-string (zoals in jouw voorbeelden) */
+    function extractCsvFromMakeResponse(rawText){
+      try{
+        // Probeer vorm: [{"body":"{...json...}"}]
+        const maybeArr = JSON.parse(rawText);
+        const bodyStr = Array.isArray(maybeArr) ? (maybeArr[0]?.body ?? maybeArr[0]?.data ?? rawText) : rawText;
+        const inner = JSON.parse(bodyStr);
+        const content = inner?.choices?.[0]?.message?.content ?? inner?.choices?.[0]?.content ?? "";
+        const m = content.match(/```csv([\s\S]*?)```/i);
+        return (m ? m[1] : content).trim();
+      }catch(e){
+        // fallback: probeer direct uit ```csv blocks
+        const m = String(rawText).match(/```csv([\s\S]*?)```/i);
+        return m ? m[1].trim() : "";
+      }
+    }
+
+    /* Converteer inkomende CSV (met eigen header) naar rijen in FIXED_HEADERS volgorde */
+    function alignRowsToFixedHeaders(inCsv){
+      const {header,rows} = parseTreatmentCsv(inCsv);
+      const idxMap = new Map();
+      header.forEach((h,i)=>{
+        const key = String(h||"").trim();
+        idxMap.set(key, i);
+      });
+      // probeer ook case-insensitive match (soms varianten)
+      function findIndexFor(h){
+        if(idxMap.has(h)) return idxMap.get(h);
+        // fallback: case-insensitive
+        const hit = header.findIndex(x => String(x||"").trim().toLowerCase() === h.toLowerCase());
+        return hit >= 0 ? hit : -1;
+      }
+      return rows.map(r => {
+        return FIXED_HEADERS.map(h => {
+          const j = findIndexFor(h);
+          return j >= 0 ? (r[j] ?? "") : "";
+        });
+      });
+    }
+
+    /* Render een aanpasbare tabel en Confirm-acties */
+    function renderTreatmentTable(inCsv){
+      const container = document.getElementById("treatmentContainer");
+      container.innerHTML = ""; // reset
+
+      // bouw tabel
+      const rowsAligned = alignRowsToFixedHeaders(inCsv);
+
+      const title = document.createElement("h3");
+      title.textContent = "Behandelkaart controleren";
+      container.appendChild(title);
+
+      const table = document.createElement("table");
+      table.style.width = "100%";
+      table.style.borderCollapse = "collapse";
+      table.style.fontSize = "14px";
+
+      // thead
+      const thead = document.createElement("thead");
+      const thr = document.createElement("tr");
+      FIXED_HEADERS.forEach(h=>{
+        const th = document.createElement("th");
+        th.textContent = h;
+        th.style.border = "1px solid #ccc";
+        th.style.padding = "6px";
+        th.style.background = "#f3f6f5";
+        th.style.position = "sticky";
+        th.style.top = "0";
+        th.style.zIndex = "1";
+        thr.appendChild(th);
+      });
+      thead.appendChild(thr);
+      table.appendChild(thead);
+
+      // tbody
+      const tbody = document.createElement("tbody");
+      rowsAligned.forEach((row)=>{
+        const tr = document.createElement("tr");
+        FIXED_HEADERS.forEach((h,ci)=>{
+          const td = document.createElement("td");
+          td.style.border = "1px solid #ddd";
+          td.style.padding = "4px";
+          if (BOOL_COLS.has(h)) {
+            const sel = document.createElement("select");
+            [YES, NO, ""].forEach(v=>{
+              const opt = document.createElement("option");
+              opt.value = v; opt.text = v || "(leeg)";
+              if (String(row[ci]||"").toUpperCase() === v) opt.selected = true;
+              sel.appendChild(opt);
+            });
+            td.appendChild(sel);
+          } else {
+            const inp = document.createElement("input");
+            inp.type = "text";
+            inp.value = row[ci] ?? "";
+            inp.style.width = "100%";
+            td.appendChild(inp);
+          }
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+
+      const scroller = document.createElement("div");
+      scroller.style.maxHeight = "420px";
+      scroller.style.overflow = "auto";
+      scroller.style.border = "1px solid #e5e7eb";
+      scroller.style.borderRadius = "6px";
+      scroller.appendChild(table);
+      container.appendChild(scroller);
+
+      // Confirm + (optioneel) POSTen
+      const btnRow = document.createElement("div");
+      btnRow.style.display = "flex";
+      btnRow.style.gap = "8px";
+      btnRow.style.marginTop = "10px";
+      btnRow.style.flexWrap = "wrap";
+
+      const confirmBtn = document.createElement("button");
+      confirmBtn.textContent = CSV_POST_URL ? "Confirm & send CSV" : "Confirm & download CSV";
+      confirmBtn.onclick = async ()=>{
+        const outRows = [];
+        for (const tr of tbody.querySelectorAll("tr")){
+          const cells=[];
+          for (const td of tr.children){
+            const el = td.querySelector("select, input");
+            cells.push(el ? el.value : "");
+          }
+          outRows.push(cells);
+        }
+        const csvOut = [FIXED_HEADERS.join(",")].concat(outRows.map(r=>r.join(","))).join("\n");
+
+        if (CSV_POST_URL){
+          try{
+            const res = await fetch(CSV_POST_URL, {
+              method:"POST",
+              headers:{ "Content-Type":"text/csv" },
+              body: csvOut
+            });
+            alert(res.ok ? "CSV verzonden naar Make." : "Versturen mislukt ("+res.status+").");
+          }catch(err){
+            alert("Fout bij POST: "+err.message);
+          }
+        } else {
+          const blob = new Blob([csvOut], {type:"text/csv;charset=utf-8"});
+          saveAs(blob, "behandelkaart.csv");
+        }
+      };
+
+      btnRow.appendChild(confirmBtn);
+      container.appendChild(btnRow);
+    }
+
+    /* Overschrijf uploadImage om na reply de tabel te tonen */
     async function uploadImage() {
       const fileInput = document.getElementById("imageUpload");
       const file = fileInput.files && fileInput.files[0];
@@ -617,7 +806,6 @@
         return;
       }
 
-      // Preview + upload
       const reader = new FileReader();
       btn.disabled = true;
 
@@ -630,7 +818,6 @@
           ? crypto.randomUUID()
           : (Date.now().toString(36) + Math.random().toString(36).slice(2));
 
-        // NIEUW: 30s aftellen (dynamische bolletjes), daarna "Finishing ..." totdat antwoord binnen is
         let replyResolved = false;
         const countdownId = startAnalyzingCountdown(
           responseEl,
@@ -653,7 +840,16 @@
           replyResolved = true;
           clearInterval(countdownId);
           clearThinking(responseEl);
-          responseEl.innerText = stripJsonBlocks(reply) || "Geen antwoord ontvangen.";
+
+          // Toon korte tekst en render vervolgens de aanpasbare tabel
+          responseEl.innerText = "Result ontvangen. Kaart wordt geladen…";
+          const csv = extractCsvFromMakeResponse(reply);
+          if (!csv) {
+            responseEl.innerText = "Kon geen CSV uit de respons halen.";
+            return;
+          }
+          renderTreatmentTable(csv);
+
         } catch (err) {
           replyResolved = true;
           clearInterval(countdownId);
