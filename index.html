@@ -235,8 +235,8 @@
           <button onclick="uploadImage()" id="imageBtn">Verstuur</button>
         </div>
         <pre id="imageResponse">Answer will appear here...</pre>
-        <!-- ✅ NIEUW: handmatige editor-knop -->
-        <button id="openEditorFromImage" class="small-btn">Open editor</button>
+        <!-- Hidden until output is created -->
+        <button id="openEditorFromImage" class="small-btn" style="display:none;">Open editor</button>
 
         <div class="file-preview" id="filePreview"></div>
 
@@ -835,6 +835,10 @@
       const previewEl = document.getElementById("filePreview");
       const responseEl = document.getElementById("imageResponse");
       const btn = document.getElementById("imageBtn");
+      const openBtn = document.getElementById("openEditorFromImage");
+
+      // hide button until we have output
+      openBtn.style.display = "none";
 
       if (!file) {
         responseEl.innerText = "Geen bestand geselecteerd.";
@@ -888,10 +892,13 @@
           clearInterval(countdownId);
           clearThinking(responseEl);
 
-          // Toon ruwe tekst (optioneel)
+          // Toon ruwe tekst
           responseEl.innerText = stripJsonBlocks(reply) || "Geen antwoord ontvangen.";
 
-          // === CSV uit webhook response halen en editor tonen ===
+          // ✅ Nu pas de "Open editor" knop tonen (output is er)
+          openBtn.style.display = "inline-block";
+
+          // Probeer CSV uit webhook response halen en editor tonen (auto)
           const ok = tryRenderCsvFromReply(reply);
           if (!ok) {
             document.getElementById("csvEditorWrap").style.display = "none";
@@ -901,6 +908,9 @@
           clearInterval(countdownId);
           clearThinking(responseEl);
           responseEl.innerText = "Fout: " + err.message;
+
+          // bij fout: knop verborgen laten
+          openBtn.style.display = "none";
           document.getElementById("csvEditorWrap").style.display = "none";
         } finally {
           btn.disabled = false;
@@ -911,7 +921,7 @@
     }
   </script>
 
-  <!-- ✅ NIEUW: handmatige editor openen op basis van getoonde output -->
+  <!-- Handmatige editor openen op basis van getoonde output -->
   <script>
     function openEditorFrom(preId){
       const raw = document.getElementById(preId)?.innerText || "";
