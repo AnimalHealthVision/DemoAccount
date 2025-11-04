@@ -133,7 +133,10 @@
     table.csv-edit input[type="text"]{ width:100%; padding:6px; border:1px solid #d1d5db; border-radius:4px; box-sizing:border-box; }
     .yn-cell{ text-align:center; }
     .yn-cell input[type="checkbox"]{ transform:scale(1.2); }
-    .editor-actions{ margin-top:10px; display:flex; gap:8px; }
+    .editor-actions{ margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .status-chip{ font-size:13px; padding:6px 8px; border-radius:16px; background:#f1f5f9; color:#0f172a; display:none; }
+    .status-chip.ok{ background:#e6f6f1; color:#065f46; }
+    .status-chip.err{ background:#fdecec; color:#991b1b; }
   </style>
 </head>
 <body>
@@ -243,6 +246,8 @@
             </div>
             <div class="editor-actions">
               <button id="confirmCsvBtn" class="small-btn">Confirm (download CSV)</button>
+              <button id="submitCsvBtn" class="small-btn" style="background:#0b5; border-color:#0a6b55;">Submit corrections</button>
+              <span id="submitStatus" class="status-chip">Status</span>
               <button id="cancelCsvBtn" class="small-btn" style="background:#6b7280; border-color:#6b7280;">Cancel</button>
             </div>
           </div>
@@ -264,6 +269,7 @@
     const SCENARIO2_URL = "https://hook.eu2.make.com/8dm926y2ted2rqsh7m5ggqg0r6qehfz1";
     const SCENARIO1_URL = "https://hook.eu2.make.com/u2luxbx3o1wihpsbysz8gelret1x0jze";
     const PHOTO_URL = SCENARIO1_URL; // foto-upload gebruikt zelfde endpoint als use case 1
+    const CORRECTION_URL = SCENARIO1_URL; // stuur correcties hierheen (pas aan indien nodig)
 
     const TYPE_SPEED = 25;       // basis (gebruikt voor S1)
     const TYPE_SPEED_S2 = 40;    // langzamer typen voor S2
@@ -496,175 +502,52 @@
       return await res.text();
     }
 
-    /* ===== Parallel flow: run S2 en S1 tegelijk, toon S2 eerst ===== */
-    async function sendToGPT() {
-      const usingPreset = togglePresets.checked;
-      const preset_id   = usingPreset ? (presetSelect.value || "") : null;
-      const preset_text = usingPreset ? (presetSelect.options[presetSelect.selectedIndex]?.text || "") : null;
-
-      const message = usingPreset ? (preset_text || "").trim()
-                                  : (userInputEl.value || "").trim();
-      const messageMultipleField = usingPreset ? preset_text : null;
-
-      const ubnRaw = document.getElementById("ubnInput").value;
-      const ubn = normalizeUBN(ubnRaw);
-      const responseEl = document.getElementById("response");
-      const dlRow = document.getElementById("downloadRow");
-      const sendBtn = document.getElementById("sendBtn");
-
-      currentRunId = ++runIdCounter;
-      const myRunId = currentRunId;
-      responseEl.textContent = "";
-      clearThinking(responseEl);
-      dlRow.style.display = "none";
-      sendBtn.disabled = true;
-
-      const requestId = (crypto && crypto.randomUUID)
-        ? crypto.randomUUID()
-        : (Date.now().toString(36) + Math.random().toString(36).slice(2));
-
-      try {
-        const payload = {
-          company_name: "TestAccount",
-          company_description: document.querySelector('meta[name="company-description"]').content,
-          message,
-          messageMultipleField,
-          question_mode: usingPreset ? "preset" : "free",
-          preset_id,
-          preset_text,
-          ubn: ubn || undefined,
-          request_id: requestId
-        };
-
-        /* === Start beide scenario's parallel === */
-        let s2Resolved = false;
-        const s2Promise = fetchText(SCENARIO2_URL, payload).then(txt => { s2Resolved = true; return txt; });
-        const s1Promise = fetchText(SCENARIO1_URL, payload);
-
-        /* === 1) Eerste 5s: "Analyzing (Xs)" -> daarna "Finishing..." indien S2 nog niet klaar === */
-        const preCountdownId = startAnalyzingCountdown(
-          responseEl,
-          5,
-          "",
-          () => { if (myRunId === currentRunId && !s2Resolved) showFinishing(responseEl); }
-        );
-
-        /* === Wacht tot S2 klaar is === */
-        const s2Raw = await s2Promise;
-        if (myRunId !== currentRunId) return;
-
-        clearInterval(preCountdownId);
-        clearThinking(responseEl);
-
-        const s2Show = stripJsonBlocks(s2Raw);
-        await typeOut(s2Show, responseEl, { clear: true, speed: TYPE_SPEED_S2 });
-
-        /* === 2) Na S2: 10s "Analyzing (Xs)" -> daarna "Finishing..." tot S1 klaar === */
-        if (myRunId !== currentRunId) return;
-        const wait10Id = startAnalyzingCountdown(
-          responseEl,
-          10,
-          s2Show,
-          () => { if (myRunId === currentRunId) showFinishing(responseEl, s2Show); }
-        );
-
-        /* === Wacht op S1 === */
-        const s1Raw = await s1Promise;
-        if (myRunId !== currentRunId) { clearInterval(wait10Id); return; }
-
-        clearInterval(wait10Id);
-        clearThinking(responseEl);
-
-        responseEl.textContent = s2Show + "\n\n";
-        const s1Show = stripJsonBlocks(s1Raw);
-        await typeOut(s1Show, responseEl, { clear: false, speed: TYPE_SPEED });
-
-        dlRow.style.display = "flex";
-
-      } catch (err) {
-        if (myRunId !== currentRunId) return;
-        clearThinking(responseEl);
-        responseEl.textContent = "Error: " + err.message;
-      } finally {
-        if (myRunId === currentRunId) sendBtn.disabled = false;
-      }
-    }
-
-    // --- Download helpers ---
-    function downloadDocx() {
-      const { Document, Packer, Paragraph, TextRun } = docx;
-      const text = (document.getElementById("response").innerText || "").replace(/\r\n/g, "\n");
-      const paragraphs = text.split("\n").map(line => new Paragraph({ children: [new TextRun(line)] }));
-      const doc = new Document({ sections: [{ properties: {}, children: paragraphs.length ? paragraphs : [new Paragraph("")] }]});
-      Packer.toBlob(doc).then(blob => saveAs(blob, "answer.docx"));
-    }
-
-    function downloadPDF() {
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF({ unit:"pt", format:"a4" });
-      const text = (document.getElementById("response").innerText || "");
-      const margin = 40;
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const maxWidth = pageWidth - margin * 2;
-      const lines = doc.splitTextToSize(text, maxWidth);
-      let y = margin;
-      const lineHeight = 16;
-
-      lines.forEach(line => {
-        if (y > pageHeight - margin) { doc.addPage(); y = margin; }
-        doc.text(line, margin, y);
-        y += lineHeight;
-      });
-
-      doc.save("answer.pdf");
-    }
-
-    /* ===============================
-       Use case 3: Foto upload (JPEG/PNG)
-       =============================== */
-
-    // ---- Nieuw: CSV editor state ----
-    let CSV_MATRIX = null;
-    let CSV_HEADERS = null;
-
-    // Welke kolommen zijn JA/NEE (alles behalve deze drie):
-    const NON_TOGGLE_COLUMNS = new Set(["KOE NUMMER","DATUM","OPMERKINGEN"]);
-
-    // Extractor: jouw webhook structuur -> CSV string
+    /* ===== CSV extraction helpers ===== */
+    // Extractor: jouw webhook tekst → CSV string (fenced of niet)
     function extractCsvFromWebhookRaw(rawText){
       try {
-        // 1) outer array
+        // 1) probeer array met {text} → JSON string
         const arr = JSON.parse(rawText);
         const entry = Array.isArray(arr) ? (arr[0] || {}) : {};
-        const bodyStr = entry.body ?? entry.data ?? entry.json ?? null;
-        const innerStr = typeof bodyStr === "string" ? bodyStr : (bodyStr ? JSON.stringify(bodyStr) : rawText);
+        const textField = entry.text ?? entry.body ?? entry.data ?? entry.json ?? null;
+        if (typeof textField === "string") {
+          const inner = textField;
+          const m1 = inner.match(/```csv\s*([\s\S]*?)```/i);
+          if (m1 && m1[1]) return m1[1].trim();
+          // try parse inner as JSON (OpenAI-like)
+          try {
+            const asObj = JSON.parse(inner);
+            const content = asObj?.choices?.[0]?.message?.content ?? "";
+            const m2 = content.match(/```csv\s*([\s\S]*?)```/i);
+            if (m2 && m2[1]) return m2[1].trim();
+            if (content && /^[^\r\n]*,[^\r\n]*$/.test(content.split("\n")[0] || "")) return content.trim();
+          } catch {}
+          // fallback: direct CSV?
+          if (inner && /^[^\r\n]*,[^\r\n]*$/.test((inner.split("\n")[0] || ""))) return inner.trim();
+        }
+      } catch {
+        // niet in array-form; ga verder
+      }
 
-        // 2) parse inner JSON
-        const bodyObj = JSON.parse(innerStr);
-
-        // 3) openai-style content
-        const content = bodyObj?.choices?.[0]?.message?.content ?? "";
-        // 4) pak blok tussen ```csv ... ```
+      // 2) openai-style raw
+      try {
+        const obj = JSON.parse(rawText);
+        const content = obj?.choices?.[0]?.message?.content ?? "";
         const m = content.match(/```csv\s*([\s\S]*?)```/i);
         if (m && m[1]) return m[1].trim();
+        if (content && /^[^\r\n]*,[^\r\n]*$/.test(content.split("\n")[0] || "")) return content.trim();
+      } catch {}
 
-        // fallback: probeer direct in rawText
-        const m2 = rawText.match(/```csv\s*([\s\S]*?)```/i);
-        if (m2 && m2[1]) return m2[1].trim();
+      // 3) brute force regex in raw
+      const m3 = rawText.match(/```csv\s*([\s\S]*?)```/i);
+      if (m3 && m3[1]) return m3[1].trim();
 
-        return "";
-      } catch (e) {
-        // laatste redmiddel: regex direct
-        const m2 = rawText.match(/```csv\s*([\s\S]*?)```/i);
-        return m2 && m2[1] ? m2[1].trim() : "";
-      }
+      return "";
     }
 
     // CSV → matrix
     function csvToMatrix(csv){
       const rows = parseCSV(csv);
-      // strip lege trailing rijen
       return rows.filter(r => r.some(c => String(c||"").trim().length));
     }
 
@@ -677,6 +560,13 @@
       };
       return matrix.map(row => row.map(esc).join(",")).join("\n");
     }
+
+    // --- CSV editor state ---
+    let CSV_MATRIX = null;
+    let CSV_HEADERS = null;
+
+    // Welke kolommen zijn JA/NEE (alles behalve deze drie):
+    const NON_TOGGLE_COLUMNS = new Set(["KOE NUMMER","DATUM","OPMERKINGEN"]);
 
     // Render editor tabel
     function renderCsvEditor(matrix){
@@ -734,11 +624,22 @@
       table.appendChild(tbody);
 
       // Buttons
+      const statusEl = document.getElementById("submitStatus");
+      statusEl.style.display = "none";
+      statusEl.className = "status-chip";
+
       document.getElementById("confirmCsvBtn").onclick = () => {
         const finalCsv = matrixToCSV(CSV_MATRIX);
         const blob = new Blob([finalCsv], { type: "text/csv;charset=utf-8" });
         saveAs(blob, "behandelkaart.csv");
       };
+
+      document.getElementById("submitCsvBtn").onclick = async () => {
+        const ubn = normalizeUBN(document.getElementById("ubnInput").value);
+        const finalCsv = matrixToCSV(CSV_MATRIX);
+        await submitCorrections(finalCsv, ubn, statusEl);
+      };
+
       document.getElementById("cancelCsvBtn").onclick = () => {
         wrap.style.display = "none";
       };
@@ -746,6 +647,185 @@
       wrap.style.display = "block";
     }
 
+    async function submitCorrections(csvText, ubn, statusEl){
+      try {
+        statusEl.style.display = "inline-block";
+        statusEl.textContent = "Submitting...";
+        statusEl.className = "status-chip";
+
+        const requestId = (crypto && crypto.randomUUID)
+          ? crypto.randomUUID()
+          : (Date.now().toString(36) + Math.random().toString(36).slice(2));
+
+        const payload = {
+          type: "behandelkaart_corrections",
+          request_id: requestId,
+          ubn: ubn || undefined,
+          corrected_csv: csvText
+        };
+
+        const res = await fetch(CORRECTION_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error("Webhook returned " + res.status);
+
+        statusEl.textContent = "Submitted ✓";
+        statusEl.className = "status-chip ok";
+      } catch (e) {
+        statusEl.textContent = "Failed: " + e.message;
+        statusEl.className = "status-chip err";
+      }
+    }
+
+    /* ===============================
+       Parallel flow S2/S1 + CSV editor
+       =============================== */
+    async function sendToGPT() {
+      const usingPreset = togglePresets.checked;
+      const preset_id   = usingPreset ? (presetSelect.value || "") : null;
+      const preset_text = usingPreset ? (presetSelect.options[presetSelect.selectedIndex]?.text || "") : null;
+
+      const message = usingPreset ? (preset_text || "").trim()
+                                  : (userInputEl.value || "").trim();
+      const messageMultipleField = usingPreset ? preset_text : null;
+
+      const ubnRaw = document.getElementById("ubnInput").value;
+      const ubn = normalizeUBN(ubnRaw);
+      const responseEl = document.getElementById("response");
+      const dlRow = document.getElementById("downloadRow");
+      const sendBtn = document.getElementById("sendBtn");
+
+      currentRunId = ++runIdCounter;
+      const myRunId = currentRunId;
+      responseEl.textContent = "";
+      clearThinking(responseEl);
+      dlRow.style.display = "none";
+      sendBtn.disabled = true;
+
+      const requestId = (crypto && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : (Date.now().toString(36) + Math.random().toString(36).slice(2));
+
+      try {
+        const payload = {
+          company_name: "TestAccount",
+          company_description: document.querySelector('meta[name="company-description"]').content,
+          message,
+          messageMultipleField,
+          question_mode: usingPreset ? "preset" : "free",
+          preset_id,
+          preset_text,
+          ubn: ubn || undefined,
+          request_id: requestId
+        };
+
+        let s2Resolved = false;
+        const s2Promise = fetchText(SCENARIO2_URL, payload).then(txt => { s2Resolved = true; return txt; });
+        const s1Promise = fetchText(SCENARIO1_URL, payload);
+
+        const preCountdownId = startAnalyzingCountdown(
+          responseEl,
+          5,
+          "",
+          () => { if (myRunId === currentRunId && !s2Resolved) showFinishing(responseEl); }
+        );
+
+        // S2
+        const s2Raw = await s2Promise;
+        if (myRunId !== currentRunId) return;
+
+        clearInterval(preCountdownId);
+        clearThinking(responseEl);
+
+        const s2Show = stripJsonBlocks(s2Raw);
+        await typeOut(s2Show, responseEl, { clear: true, speed: TYPE_SPEED_S2 });
+
+        // probeer CSV uit S2 te halen
+        tryRenderCsvFromReply(s2Raw);
+
+        // Wachten op S1
+        if (myRunId !== currentRunId) return;
+        const wait10Id = startAnalyzingCountdown(
+          responseEl,
+          10,
+          s2Show,
+          () => { if (myRunId === currentRunId) showFinishing(responseEl, s2Show); }
+        );
+
+        const s1Raw = await s1Promise;
+        if (myRunId !== currentRunId) { clearInterval(wait10Id); return; }
+
+        clearInterval(wait10Id);
+        clearThinking(responseEl);
+
+        responseEl.textContent = s2Show + "\n\n";
+        const s1Show = stripJsonBlocks(s1Raw);
+        await typeOut(s1Show, responseEl, { clear: false, speed: TYPE_SPEED });
+
+        // probeer CSV uit S1 te halen (kan nieuwer/definitiever zijn)
+        tryRenderCsvFromReply(s1Raw);
+
+        dlRow.style.display = "flex";
+
+      } catch (err) {
+        if (myRunId !== currentRunId) return;
+        clearThinking(responseEl);
+        responseEl.textContent = "Error: " + err.message;
+      } finally {
+        if (myRunId === currentRunId) sendBtn.disabled = false;
+      }
+    }
+
+    function tryRenderCsvFromReply(rawReply){
+      const csv = extractCsvFromWebhookRaw(rawReply);
+      if (csv) {
+        const matrix = csvToMatrix(csv);
+        if (matrix && matrix.length > 1) {
+          renderCsvEditor(matrix);
+          return true;
+        }
+      }
+      // geen CSV gevonden → verberg editor
+      document.getElementById("csvEditorWrap").style.display = "none";
+      return false;
+    }
+
+    // --- Download helpers ---
+    function downloadDocx() {
+      const { Document, Packer, Paragraph, TextRun } = docx;
+      const text = (document.getElementById("response").innerText || "").replace(/\r\n/g, "\n");
+      const paragraphs = text.split("\n").map(line => new Paragraph({ children: [new TextRun(line)] }));
+      const doc = new Document({ sections: [{ properties: {}, children: paragraphs.length ? paragraphs : [new Paragraph("")] }]});
+      Packer.toBlob(doc).then(blob => saveAs(blob, "answer.docx"));
+    }
+
+    function downloadPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit:"pt", format:"a4" });
+      const text = (document.getElementById("response").innerText || "");
+      const margin = 40;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const maxWidth = pageWidth - margin * 2;
+      const lines = doc.splitTextToSize(text, maxWidth);
+      let y = margin;
+      const lineHeight = 16;
+
+      lines.forEach(line => {
+        if (y > pageHeight - margin) { doc.addPage(); y = margin; }
+        doc.text(line, margin, y);
+        y += lineHeight;
+      });
+
+      doc.save("answer.pdf");
+    }
+
+    /* ===============================
+       Use case 3: Foto upload (JPEG/PNG)
+       =============================== */
     async function uploadImage() {
       const fileInput = document.getElementById("imageUpload");
       const file = fileInput.files && fileInput.files[0];
@@ -808,16 +888,9 @@
           // Toon ruwe tekst (optioneel)
           responseEl.innerText = stripJsonBlocks(reply) || "Geen antwoord ontvangen.";
 
-          // === Nieuw: CSV uit webhook response halen en editor tonen ===
-          const csv = extractCsvFromWebhookRaw(reply);
-          if (csv) {
-            const matrix = csvToMatrix(csv);
-            if (matrix && matrix.length > 1) {
-              renderCsvEditor(matrix);
-            } else {
-              document.getElementById("csvEditorWrap").style.display = "none";
-            }
-          } else {
+          // === CSV uit webhook response halen en editor tonen ===
+          const ok = tryRenderCsvFromReply(reply);
+          if (!ok) {
             document.getElementById("csvEditorWrap").style.display = "none";
           }
         } catch (err) {
