@@ -248,8 +248,9 @@
               <table id="csvEditorTable" class="csv-edit" aria-label="Behandelkaart editor"></table>
             </div>
             <div class="editor-actions">
+              <button id="addRowBtn" class="small-btn" style="background:#2563eb; border-color:#1d4ed8;">Add row</button>
               <button id="confirmCsvBtn" class="small-btn">Confirm (download CSV)</button>
-              <button id="submitCsvBtn" class="small-btn" style="background:#0b5; border-color:#0a6b55;">Submit corrections</button>
+              <button id="submitCsvBtn" class="small-btn" style="background:#0b5; border-color:#0a6b55;">Submit treatment record</button>
               <span id="submitStatus" class="status-chip">Status</span>
               <button id="cancelCsvBtn" class="small-btn" style="background:#6b7280; border-color:#6b7280;">Cancel</button>
             </div>
@@ -273,7 +274,7 @@
     const SCENARIO1_URL = "https://hook.eu2.make.com/u2luxbx3o1wihpsbysz8gelret1x0jze";
     const PHOTO_URL = SCENARIO1_URL; // foto-upload gebruikt zelfde endpoint als use case 1
 
-    // ✅ Corrections go to your new webhook
+    // Corrections (treatment record) webhook
     const CORRECTION_URL = "https://hook.eu2.make.com/n16792joe3us6eo41o4x9efbj9r582c6";
 
     const TYPE_SPEED = 25;       // basis (gebruikt voor S1)
@@ -287,7 +288,6 @@
     const CSV_PATH = "CountryCodes (6).csv"; // zelfde map als index.html
     const FARM_INDEX = new Map(); // key: ubn (string digits), value: {name, country_code?, ...}
 
-    // Kleine, robuuste CSV parser (ondersteunt quotes & komma's in velden)
     function parseCSV(text) {
       const rows = [];
       let i = 0, field = "", row = [], inQuotes = false;
@@ -405,11 +405,6 @@
     ubnInputEl.addEventListener("blur", (e) => showFarmNameForUBN(e.target.value));
 
     /* ===== Tekst helpers voor animaties ===== */
-    function showAnalyzing(el, prefixText = "") {
-      const base = prefixText ? (prefixText + "\n\n") : "";
-      el.textContent = base + "Analyzing";
-      el.classList.add("thinking");
-    }
     function showFinishing(el, prefixText = "") {
       const base = prefixText ? (prefixText + "\n\n") : "";
       el.textContent = base + "Finishing";
@@ -418,7 +413,6 @@
     function clearThinking(el) {
       el.classList.remove("thinking");
     }
-
     function startAnalyzingCountdown(el, seconds, prefixText = "", onDone) {
       let s = seconds;
       const base = prefixText ? (prefixText + "\n\n") : "";
@@ -436,7 +430,6 @@
       }, 1000);
       return id;
     }
-
     async function typeOut(text, el, opts = {}) {
       const speed = opts.speed ?? 25;
       const clear = opts.clear ?? true;
@@ -457,14 +450,10 @@
       }
       el.classList.remove("typing-caret");
     }
-
-    /* ===== Helper: STRICTLY strip JSON & fenced code blocks ===== */
     function stripJsonBlocks(raw){
       if (!raw) return "";
       let t = String(raw);
-
       t = t.replace(/```[\s\S]*?```/g, "");
-
       function stripBalancedJson(s, open, close){
         let out = "", depth = 0, buf = "";
         for (let i = 0; i < s.length; i++){
@@ -485,19 +474,15 @@
       }
       t = stripBalancedJson(t, "{", "}");
       t = stripBalancedJson(t, "[", "]");
-
       t = t.split("\n").filter(line => {
         const trimmed = line.trim();
         const looksInlineJson = (/^(\{|\[).*(\:).*(\}|\])$/.test(trimmed) && trimmed.length > 20);
         return !looksInlineJson;
       }).join("\n");
-
       t = t.replace(/[ \t]*,\s*\n/g, "\n");
       t = t.replace(/\n{3,}/g, "\n\n");
-
       return t.trim();
     }
-
     async function fetchText(url, payload){
       const res = await fetch(url, {
         method: "POST",
@@ -508,10 +493,8 @@
     }
 
     /* ===== CSV extraction helpers ===== */
-    // Extractor: jouw webhook tekst → CSV string (fenced of niet)
     function extractCsvFromWebhookRaw(rawText){
       try {
-        // 1) probeer array met {text} → JSON string
         const arr = JSON.parse(rawText);
         const entry = Array.isArray(arr) ? (arr[0] || {}) : {};
         const textField = entry.text ?? entry.body ?? entry.data ?? entry.json ?? null;
@@ -519,7 +502,6 @@
           const inner = textField;
           const m1 = inner.match(/```csv\s*([\s\S]*?)```/i);
           if (m1 && m1[1]) return m1[1].trim();
-          // try parse inner as JSON (OpenAI-like)
           try {
             const asObj = JSON.parse(inner);
             const content = asObj?.choices?.[0]?.message?.content ?? "";
@@ -527,14 +509,9 @@
             if (m2 && m2[1]) return m2[1].trim();
             if (content && /^[^\r\n]*,[^\r\n]*$/.test(content.split("\n")[0] || "")) return content.trim();
           } catch {}
-          // fallback: direct CSV?
           if (inner && /^[^\r\n]*,[^\r\n]*$/.test((inner.split("\n")[0] || ""))) return inner.trim();
         }
-      } catch {
-        // niet in array-form; ga verder
-      }
-
-      // 2) openai-style raw
+      } catch {}
       try {
         const obj = JSON.parse(rawText);
         const content = obj?.choices?.[0]?.message?.content ?? "";
@@ -542,21 +519,14 @@
         if (m && m[1]) return m[1].trim();
         if (content && /^[^\r\n]*,[^\r\n]*$/.test(content.split("\n")[0] || "")) return content.trim();
       } catch {}
-
-      // 3) brute force regex in raw
       const m3 = rawText.match(/```csv\s*([\s\S]*?)```/i);
       if (m3 && m3[1]) return m3[1].trim();
-
       return "";
     }
-
-    // CSV → matrix
     function csvToMatrix(csv){
       const rows = parseCSV(csv);
       return rows.filter(r => r.some(c => String(c||"").trim().length));
     }
-
-    // Matrix → CSV
     function matrixToCSV(matrix){
       const esc = v => {
         const s = String(v ?? "");
@@ -573,7 +543,6 @@
     // Welke kolommen zijn JA/NEE (alles behalve deze drie):
     const NON_TOGGLE_COLUMNS = new Set(["KOE NUMMER","DATUM","OPMERKINGEN"]);
 
-    // Render editor tabel
     function renderCsvEditor(matrix){
       if (!matrix || !matrix.length) return;
       const wrap = document.getElementById("csvEditorWrap");
@@ -601,7 +570,6 @@
         CSV_HEADERS.forEach((h, cIdx) => {
           const td = document.createElement("td");
           if (!NON_TOGGLE_COLUMNS.has(h)) {
-            // Toggle JA/NEE
             const val = String(CSV_MATRIX[r][cIdx] ?? "").trim().toUpperCase();
             const checked = (val === "JA");
             td.className = "yn-cell";
@@ -613,7 +581,6 @@
             });
             td.appendChild(cb);
           } else {
-            // Tekst input
             const inp = document.createElement("input");
             inp.type = "text";
             inp.value = CSV_MATRIX[r][cIdx] ?? "";
@@ -628,10 +595,44 @@
       }
       table.appendChild(tbody);
 
-      // Buttons
+      // Buttons + actions
       const statusEl = document.getElementById("submitStatus");
       statusEl.style.display = "none";
       statusEl.className = "status-chip";
+
+      // Add row handler
+      document.getElementById("addRowBtn").onclick = () => {
+        if (!CSV_HEADERS) return;
+        const newRow = CSV_HEADERS.map(h => NON_TOGGLE_COLUMNS.has(h) ? "" : "NEE");
+        CSV_MATRIX.push(newRow);
+
+        // append one new row without full re-render
+        const tr = document.createElement("tr");
+        CSV_HEADERS.forEach((h, cIdx) => {
+          const td = document.createElement("td");
+          if (!NON_TOGGLE_COLUMNS.has(h)) {
+            td.className = "yn-cell";
+            const cb = document.createElement("input");
+            cb.type = "checkbox";
+            cb.checked = false; // "NEE"
+            cb.addEventListener("change", () => {
+              CSV_MATRIX[CSV_MATRIX.length - 1][cIdx] = cb.checked ? "JA" : "NEE";
+            });
+            td.appendChild(cb);
+          } else {
+            const inp = document.createElement("input");
+            inp.type = "text";
+            inp.value = "";
+            inp.addEventListener("input", (e) => {
+              // last row index
+              CSV_MATRIX[CSV_MATRIX.length - 1][cIdx] = e.target.value;
+            });
+            td.appendChild(inp);
+          }
+          tr.appendChild(td);
+        });
+        table.querySelector("tbody").appendChild(tr);
+      };
 
       document.getElementById("confirmCsvBtn").onclick = () => {
         const finalCsv = matrixToCSV(CSV_MATRIX);
@@ -652,35 +653,63 @@
       wrap.style.display = "block";
     }
 
+    /* Robust submit with fallback & diagnostics  */
     async function submitCorrections(csvText, ubn, statusEl){
+      statusEl.style.display = "inline-block";
+      statusEl.textContent = "Submitting...";
+      statusEl.className = "status-chip";
+
+      const requestId = (crypto && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : (Date.now().toString(36) + Math.random().toString(36).slice(2));
+
+      // renamed semantic "type"
+      const basePayload = {
+        type: "treatment_record",
+        request_id: requestId,
+        ubn: ubn || undefined,
+        corrected_csv: csvText
+      };
+
+      async function assertOk(res){
+        const bodyText = await res.text();
+        if (!res.ok) {
+          const msg = `HTTP ${res.status} ${res.statusText} — ${bodyText.slice(0, 500)}`;
+          throw new Error(msg);
+        }
+        return bodyText;
+      }
+
+      // Try JSON
       try {
-        statusEl.style.display = "inline-block";
-        statusEl.textContent = "Submitting...";
-        statusEl.className = "status-chip";
-
-        const requestId = (crypto && crypto.randomUUID)
-          ? crypto.randomUUID()
-          : (Date.now().toString(36) + Math.random().toString(36).slice(2));
-
-        const payload = {
-          type: "behandelkaart_corrections",
-          request_id: requestId,
-          ubn: ubn || undefined,
-          corrected_csv: csvText
-        };
-
         const res = await fetch(CORRECTION_URL, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
+          headers: { "Content-Type": "application/json", "Accept": "application/json" },
+          body: JSON.stringify(basePayload)
         });
-
-        if (!res.ok) throw new Error("Webhook returned " + res.status);
-
+        await assertOk(res);
         statusEl.textContent = "Submitted ✓";
         statusEl.className = "status-chip ok";
-      } catch (e) {
-        statusEl.textContent = "Failed: " + e.message;
+        return;
+      } catch (e1) {
+        console.warn("JSON submit failed, retry as form-data:", e1);
+      }
+
+      // Fallback: multipart/form-data
+      try {
+        const fd = new FormData();
+        fd.append("type", "treatment_record");
+        fd.append("request_id", requestId);
+        fd.append("ubn", ubn || "");
+        fd.append("corrected_csv", csvText);
+
+        const res2 = await fetch(CORRECTION_URL, { method: "POST", body: fd });
+        await assertOk(res2);
+        statusEl.textContent = "Submitted ✓ (form-data)";
+        statusEl.className = "status-chip ok";
+        return;
+      } catch (e2) {
+        statusEl.textContent = "Failed: " + e2.message;
         statusEl.className = "status-chip err";
       }
     }
@@ -867,11 +896,11 @@
           ? crypto.randomUUID()
           : (Date.now().toString(36) + Math.random().toString(36).slice(2));
 
-        // 30s countdown; daarna "Finishing ..." tot antwoord er is
+        // Use case 3: 40s countdown (was 30s)
         let replyResolved = false;
         const countdownId = startAnalyzingCountdown(
           responseEl,
-          30,
+          40,
           "",
           () => { if (!replyResolved) showFinishing(responseEl); }
         );
