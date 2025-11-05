@@ -24,14 +24,12 @@
     .wrap{ display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding-top:30px; }
     .chat-box{
       background:#fff; padding:30px; border-radius:12px; box-shadow:0 8px 20px rgba(0,0,0,.1);
-      width:90%; max-width:900px; /* was 740px → iets wijder gemaakt */
+      width:90%; max-width:1100px; /* was 900px → iets wijder gemaakt */
       text-align:center; margin:30px auto;
     }
     img.logo{ width:150px; margin-bottom:10px; }
     h1{ color:#007b5e; margin:10px 0 5px 0; font-size:32px; }
     h2{ color:#555; margin:0 0 10px 0; font-size:16px; font-weight:normal; }
-
-    /* (Oude farm-table styles verwijderd uit gebruik) */
 
     /* Controls */
     .field-wrap { width:90%; margin:0 auto 10px; text-align:left; }
@@ -117,23 +115,6 @@
       66% { content: " ..."; }
       100% { content: " ."; }
     }
-
-    /* CSV editor */
-    #csvEditorWrap{ display:none; margin-top:16px; text-align:left; }
-    #csvEditorWrap h3{ margin:0 0 8px 0; color:#007b5e; }
-    table.csv-edit{ width:100%; border-collapse:collapse; font-size:14px; }
-    table.csv-edit th, table.csv-edit td{ border:1px solid #e5e7eb; padding:6px 8px; vertical-align:middle; }
-    table.csv-edit th{ position:sticky; top:0; background:#f3f6f5; z-index:1; }
-    table.csv-edit input[type="text"]{ width:100%; padding:6px; border:1px solid #d1d5db; border-radius:4px; box-sizing:border-box; }
-    .yn-cell{ text-align:center; }
-    .yn-cell input[type="checkbox"]{ transform:scale(1.2); }
-    .editor-actions{ margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    .status-chip{ font-size:13px; padding:6px 8px; border-radius:16px; background:#f1f5f9; color:#0f172a; display:none; }
-    .status-chip.ok{ background:#e6f6f1; color:#065f46; }
-    .status-chip.err{ background:#fdecec; color:#991b1b; }
-
-    /* selectie style voor rij */
-    .row-selected { background:#fff7ed !important; }
   </style>
 </head>
 <body>
@@ -159,10 +140,10 @@
         <!-- Intro -->
         <h2>In this demo, you can ask questions about the farm, cows, or sales from the past 12 months.</h2>
 
-        <!-- Nieuwe: Zoekbare dropdown met farms (op naam + country), zet UBN automatisch -->
+        <!-- Nieuwe: Zoekbare dropdown met farms (met Farm Identifier) -->
         <div class="field-wrap" id="farmPickerWrap">
-          <label for="farmSearch" style="display:block; font-size:14px; color:#555; margin-bottom:6px;">Search farms (name or country code)</label>
-          <input id="farmSearch" placeholder="Type to filter… e.g. 'Smith', 'NL', 'FR'">
+          <label for="farmSearch" style="display:block; font-size:14px; color:#555; margin-bottom:6px;">Select a farm</label>
+          <input id="farmSearch" placeholder="Farm Identifier (e.g. 314112)">
         </div>
         <div class="field-wrap">
           <select id="farmSelect" aria-label="Select a farm by name and country">
@@ -171,7 +152,7 @@
         </div>
 
         <div class="field-wrap">
-          <input id="ubnInput" placeholder="Enter your UBN (farm registration number)..." inputmode="numeric" />
+          <!-- Het veld voor de UBN is niet meer zichtbaar. -->
           <div id="farmNameHint" class="hint" aria-live="polite"></div>
           <div id="selectedFarmNote" class="hint"></div>
         </div>
@@ -217,40 +198,6 @@
         </div>
       </div>
 
-      <!-- Use case 3: AHV / Foto Upload Sectie -->
-      <div class="chat-box" id="photoBox">
-        <h2>Upload a photo of the completed treatment card using your phone</h2>
-        <div class="field-wrap">
-          <input type="file" id="imageUpload" accept="image/png,image/jpeg" />
-        </div>
-        <div class="field-wrap">
-          <button onclick="uploadImage()" id="imageBtn">Verstuur</button>
-        </div>
-        <pre id="imageResponse">Answer will appear here...</pre>
-        <!-- Hidden until output is created -->
-        <button id="openEditorFromImage" class="small-btn" style="display:none;">Open editor</button>
-
-        <div class="file-preview" id="filePreview"></div>
-
-        <!-- CSV Editor -->
-        <div id="csvEditorWrap">
-          <h3>Behandelkaart (bewerken & bevestigen)</h3>
-          <div class="field-wrap">
-            <div style="max-height:420px; overflow:auto; border:1px solid #e5e7eb; border-radius:8px;">
-              <table id="csvEditorTable" class="csv-edit" aria-label="Behandelkaart editor"></table>
-            </div>
-            <div class="editor-actions">
-              <button id="addRowBtn" class="small-btn" style="background:#2563eb; border-color:#1d4ed8;">Add row</button>
-              <button id="deleteRowBtn" class="small-btn" style="background:#ef4444; border-color:#dc2626;">Delete row</button>
-              <button id="confirmCsvBtn" class="small-btn">Confirm (download CSV)</button>
-              <button id="submitCsvBtn" class="small-btn" style="background:#0b5; border-color:#0a6b55;">Submit treatment record</button>
-              <span id="submitStatus" class="status-chip">Status</span>
-              <button id="cancelCsvBtn" class="small-btn" style="background:#6b7280; border-color:#6b7280;">Cancel</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
     </div>
   </div>
 
@@ -261,23 +208,15 @@
 
   <script>
     const PASS_HASH = "234f1d8746bbd3d0b3a236243b96f8c353c7625c4af41f3d86aac4f239a7e2d0"; // SHA-256 of "AHVDemo123!"
-
-    // Scenario URLs
     const SCENARIO2_URL = "https://hook.eu2.make.com/8dm926y2ted2rqsh7m5ggqg0r6qehfz1";
     const SCENARIO1_URL = "https://hook.eu2.make.com/u2luxbx3o1wihpsbysz8gelret1x0jze";
     const PHOTO_URL = SCENARIO1_URL; // foto-upload gebruikt zelfde endpoint als use case 1
-
-    // Corrections (treatment record) webhook
     const CORRECTION_URL = "https://hook.eu2.make.com/n16792joe3us6eo41o4x9efbj9r582c6";
-
     const TYPE_SPEED = 25;
     const TYPE_SPEED_S2 = 40;
     let runIdCounter = 0;
     let currentRunId = 0;
 
-    /* =========================
-       UBN → Farm name (CSV)
-       ========================= */
     const CSV_PATH = "CountryCodes (6).csv"; // zelfde map als index.html
     const FARM_INDEX = new Map(); // key: ubn, value: {name, country}
     let FARMS = []; // [{ubn, name, country}]
@@ -360,7 +299,7 @@
 
     // === nieuwe helpers: dropdown + search ===
     function optionLabel(f) {
-      return `${f.name}${f.country ? " — " + f.country : ""}`;
+      return `${f.name}${f.country ? " — " + f.country : ""} (${f.ubn})`; // Farm name + country + UBN
     }
 
     function populateFarmSelect(list){
@@ -370,7 +309,7 @@
       list.forEach(f => {
         const opt = document.createElement("option");
         opt.value = f.ubn;               // waarde = UBN
-        opt.textContent = optionLabel(f); // getoond: "Naam — CC"
+        opt.textContent = optionLabel(f); // getoond: "Naam — CC (UBN)"
         frag.appendChild(opt);
       });
       sel.appendChild(frag);
@@ -429,10 +368,7 @@
     }
     togglePresets.addEventListener("change", updateMode);
 
-    ubnInputEl.addEventListener("input", (e) => showFarmNameForUBN(e.target.value));
-    ubnInputEl.addEventListener("blur", (e) => showFarmNameForUBN(e.target.value));
-
-    // events: farm search + select → zet UBN & note
+    // === events: farm search + select ===
     const farmSearchEl = document.getElementById("farmSearch");
     const farmSelectEl = document.getElementById("farmSelect");
     const selectedFarmNoteEl = document.getElementById("selectedFarmNote");
@@ -447,11 +383,9 @@
         selectedFarmNoteEl.textContent = "";
         return;
       }
-      // zet UBN veld
+      // Zet UBN direct zonder zichtbaar input veld
       ubnInputEl.value = ubn;
-      // toon hint
-      showFarmNameForUBN(ubn);
-      // toon naam + CC + UBN onder dropdown
+      // Toon naam + CC + UBN onder dropdown
       const rec = FARM_INDEX.get(ubn);
       if (rec) {
         selectedFarmNoteEl.innerHTML = `<span class="ok">Selected: ${rec.name}${rec.country ? " — " + rec.country : ""} (UBN: ${ubn})</span>`;
@@ -460,7 +394,9 @@
       }
     });
 
-    /* ===== Tekst helpers voor animaties ===== */
+    /* =========================
+       Tekst helpers voor animaties
+       ========================= */
     function showFinishing(el, prefixText = "") {
       const base = prefixText ? (prefixText + "\n\n") : "";
       el.textContent = base + "Finishing";
@@ -892,156 +828,6 @@
         if (myRunId === currentRunId) sendBtn.disabled = false;
       }
     }
-
-    function tryRenderCsvFromReply(rawReply){
-      const csv = extractCsvFromWebhookRaw(rawReply);
-      if (csv) {
-        const matrix = csvToMatrix(csv);
-        if (matrix && matrix.length > 1) {
-          renderCsvEditor(matrix);
-          return true;
-        }
-      }
-      document.getElementById("csvEditorWrap").style.display = "none";
-      return false;
-    }
-
-    // --- Download helpers ---
-    function downloadDocx() {
-      const { Document, Packer, Paragraph, TextRun } = docx;
-      const text = (document.getElementById("response").innerText || "").replace(/\r\n/g, "\n");
-      const paragraphs = text.split("\n").map(line => new Paragraph({ children: [new TextRun(line)] }));
-      const doc = new Document({ sections: [{ properties: {}, children: paragraphs.length ? paragraphs : [new Paragraph("")] }]});
-      Packer.toBlob(doc).then(blob => saveAs(blob, "answer.docx"));
-    }
-
-    function downloadPDF() {
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF({ unit:"pt", format:"a4" });
-      const text = (document.getElementById("response").innerText || "");
-      const margin = 40;
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const maxWidth = pageWidth - margin * 2;
-      const lines = doc.splitTextToSize(text, maxWidth);
-      let y = margin;
-      const lineHeight = 16;
-
-      lines.forEach(line => {
-        if (y > pageHeight - margin) { doc.addPage(); y = margin; }
-        doc.text(line, margin, y);
-        y += lineHeight;
-      });
-
-      doc.save("answer.pdf");
-    }
-
-    /* ===============================
-       Use case 3: Foto upload (JPEG/PNG)
-       =============================== */
-    async function uploadImage() {
-      const fileInput = document.getElementById("imageUpload");
-      const file = fileInput.files && fileInput.files[0];
-      const previewEl = document.getElementById("filePreview");
-      const responseEl = document.getElementById("imageResponse");
-      const btn = document.getElementById("imageBtn");
-      const openBtn = document.getElementById("openEditorFromImage");
-
-      openBtn.style.display = "none";
-
-      if (!file) {
-        responseEl.innerText = "Geen bestand geselecteerd.";
-        return;
-      }
-
-      const isAllowedType = /image\/jpeg|image\/png/i.test(file.type)
-        || /\.(jpe?g|png)$/i.test(file.name);
-      if (!isAllowedType) {
-        responseEl.innerText = "Alleen JPEG of PNG is toegestaan.";
-        return;
-      }
-
-      const reader = new FileReader();
-      btn.disabled = true;
-
-      reader.onload = async function(e) {
-        const base64Image = e.target.result; // data URL
-        /* ▼▼ AANGEPAST: engels tekst ▼▼ */
-        previewEl.innerHTML = `<strong>Your upload:</strong><br><img src="${base64Image}" alt="Upload preview" />`;
-
-        const ubn = normalizeUBN(document.getElementById("ubnInput").value);
-        const requestId = (crypto && crypto.randomUUID)
-          ? crypto.randomUUID()
-          : (Date.now().toString(36) + Math.random().toString(36).slice(2));
-
-        // 40s countdown
-        let replyResolved = false;
-        const countdownId = startAnalyzingCountdown(
-          responseEl,
-          40,
-          "",
-          () => { if (!replyResolved) showFinishing(responseEl); }
-        );
-
-        document.getElementById("csvEditorWrap").style.display = "none";
-
-        try {
-          const payload = {
-            company_name: "TestAccount",
-            company_description: document.querySelector('meta[name="company-description"]').content,
-            message: "Afbeelding geüpload",
-            ubn: ubn || undefined,
-            request_id: requestId,
-            uploaded_image: base64Image
-          };
-
-          const reply = await fetchText(PHOTO_URL, payload);
-          replyResolved = true;
-          clearInterval(countdownId);
-          clearThinking(responseEl);
-
-          responseEl.innerText = stripJsonBlocks(reply) || "Geen antwoord ontvangen.";
-
-          openBtn.style.display = "inline-block";
-
-          const ok = tryRenderCsvFromReply(reply);
-          if (!ok) {
-            document.getElementById("csvEditorWrap").style.display = "none";
-          }
-        } catch (err) {
-          replyResolved = true;
-          clearInterval(countdownId);
-          clearThinking(responseEl);
-          responseEl.innerText = "Fout: " + err.message;
-          openBtn.style.display = "none";
-          document.getElementById("csvEditorWrap").style.display = "none";
-        } finally {
-          btn.disabled = false;
-        }
-      };
-
-      reader.readAsDataURL(file);
-    }
-  </script>
-
-  <!-- Handmatige editor openen op basis van getoonde output -->
-  <script>
-    function openEditorFrom(preId){
-      const raw = document.getElementById(preId)?.innerText || "";
-      const csv = extractCsvFromWebhookRaw(raw) || raw;
-      const matrix = csvToMatrix(csv);
-      if (matrix && matrix.length > 1) {
-        renderCsvEditor(matrix);
-        document.getElementById("csvEditorWrap").scrollIntoView({ behavior: "smooth" });
-      } else {
-        alert("Geen CSV gevonden om te bewerken.");
-      }
-    }
-
-    document.addEventListener("DOMContentLoaded", () => {
-      const btnImg = document.getElementById("openEditorFromImage");
-      if (btnImg) btnImg.onclick = () => openEditorFrom("imageResponse");
-    });
   </script>
 </body>
 </html>
