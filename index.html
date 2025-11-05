@@ -349,13 +349,7 @@
       const key = normalizeUBN(rawUBN);
       if (!key) { hint.textContent = ""; return; }
 
-      const rec = FARM_INDEX.get(key);
-      if (rec && rec.name) {
-        hint.innerHTML = `<span class="ok">( ${rec.name}${rec.country ? " — " + rec.country : ""} )</span>`;
-      } else {
-        hint.innerHTML = `<span class="warn">( UBN onbekend )</span>`;
-      }
-    }
+     }
 
     // === nieuwe helpers: dropdown + search ===
     function optionLabel(f) {
@@ -1044,5 +1038,6 @@
   </script>
 </body>
 </html>
+
 
 
