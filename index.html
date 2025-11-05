@@ -24,20 +24,14 @@
     .wrap{ display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding-top:30px; }
     .chat-box{
       background:#fff; padding:30px; border-radius:12px; box-shadow:0 8px 20px rgba(0,0,0,.1);
-      width:90%; max-width:740px;
+      width:90%; max-width:900px; /* was 740px → iets wijder gemaakt */
       text-align:center; margin:30px auto;
     }
     img.logo{ width:150px; margin-bottom:10px; }
     h1{ color:#007b5e; margin:10px 0 5px 0; font-size:32px; }
     h2{ color:#555; margin:0 0 10px 0; font-size:16px; font-weight:normal; }
 
-    /* Farm identifiers table */
-    .farm-table{
-      width:90%; margin:12px auto; border-collapse:collapse; font-size:15px; background:#fff;
-    }
-    .farm-table th, .farm-table td{ border:1px solid #e0e0e0; padding:10px; }
-    .farm-table th{ background:#f3f6f5; color:#007b5e; text-align:center; }
-    .farm-table td{ text-align:center; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+    /* (Oude farm-table styles verwijderd uit gebruik) */
 
     /* Controls */
     .field-wrap { width:90%; margin:0 auto 10px; text-align:left; }
@@ -70,13 +64,13 @@
       white-space:pre-wrap;
       word-wrap:break-word;
       min-height:50px;
-      width:96%;
+      width:100%; /* was 96% → volledig binnen de bredere kaart */
       box-sizing:border-box;
     }
 
     .download-row{
       display:none;
-      width:96%;
+      width:100%;
       margin:8px auto 0;
       gap:8px;
       justify-content:flex-start;
@@ -162,29 +156,24 @@
         <img class="logo" src="ahv-logo.jpg" alt="AHV logo" />
         <h1>Demo account</h1>
 
-        <!-- Text + table -->
-        <h2>In this demo, you can ask questions about the farm, cows, or sales from the past 12 months for the following farms:</h2>
-        <table class="farm-table" aria-label="Farm identifiers per country">
-          <thead>
-            <tr><th>NL</th><th>GB</th><th>DE</th><th>FR</th><th>BE</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>314112</td><td>027754901</td><td>010580072684</td><td>08124015</td><td>1102314969</td></tr>
-            <tr><td>358800</td><td>066526303</td><td>033570182014</td><td>22272100</td><td>1301704331</td></tr>
-            <tr><td>406051</td><td>086437501</td><td>1060756328</td><td>29208090</td><td>3701568500</td></tr>
-            <tr><td>407225</td><td>146648201</td><td>141730700340</td><td>29274489</td><td>3800205069</td></tr>
-            <tr><td>412980</td><td>901062000</td><td>141882600093</td><td>35072016</td><td>4300202077</td></tr>
-            <tr><td>473008</td><td>901216100</td><td>141932900947</td><td>42213083</td><td>4300605134</td></tr>
-            <tr><td>527002</td><td>901239700</td><td>143795003300</td><td>50189022</td><td>4601600477</td></tr>
-            <tr><td>530295</td><td>902194200</td><td>160710110010</td><td>50551254</td><td>4602800954</td></tr>
-            <tr><td>600345</td><td>902626200</td><td>DE010550444423</td><td>56144020</td><td>7300109357</td></tr>
-            <tr><td>6313605</td><td>909502900</td><td></td><td>59241037</td><td></td></tr>
-          </tbody>
-        </table>
+        <!-- Intro -->
+        <h2>In this demo, you can ask questions about the farm, cows, or sales from the past 12 months.</h2>
+
+        <!-- Nieuwe: Zoekbare dropdown met farms (op naam + country), zet UBN automatisch -->
+        <div class="field-wrap" id="farmPickerWrap">
+          <label for="farmSearch" style="display:block; font-size:14px; color:#555; margin-bottom:6px;">Search farms (name or country code)</label>
+          <input id="farmSearch" placeholder="Type to filter… e.g. 'Smith', 'NL', 'FR'">
+        </div>
+        <div class="field-wrap">
+          <select id="farmSelect" aria-label="Select a farm by name and country">
+            <option value="">— Select a farm —</option>
+          </select>
+        </div>
 
         <div class="field-wrap">
           <input id="ubnInput" placeholder="Enter your UBN (farm registration number)..." inputmode="numeric" />
           <div id="farmNameHint" class="hint" aria-live="polite"></div>
+          <div id="selectedFarmNote" class="hint"></div>
         </div>
 
         <!-- Free text (shown when presets are OFF) -->
@@ -291,6 +280,7 @@
        ========================= */
     const CSV_PATH = "CountryCodes (6).csv"; // zelfde map als index.html
     const FARM_INDEX = new Map(); // key: ubn, value: {name, country}
+    let FARMS = []; // [{ubn, name, country}]
 
     function parseCSV(text) {
       const rows = [];
@@ -338,13 +328,18 @@
         const u = ubnIdx >= 0 ? ubnIdx : ubnIdxAlt;
         const n = nameIdx >= 0 ? nameIdx : nameIdxAlt;
 
+        FARMS = [];
         for (let r = 1; r < rows.length; r++) {
           const cells = rows[r];
           const key = normalizeUBN(cells[u] ?? "");
           const name = (cells[n] ?? "").toString().trim();
           const country = ccIdx >= 0 ? (cells[ccIdx] ?? "").toString().trim() : "";
-          if (key) FARM_INDEX.set(key, { name, country });
+          if (key) {
+            FARM_INDEX.set(key, { name, country });
+            FARMS.push({ ubn: key, name, country });
+          }
         }
+        populateFarmSelect(FARMS);
       } catch (e) {
         console.warn("Farm index build failed:", e);
       }
@@ -363,6 +358,35 @@
       }
     }
 
+    // === nieuwe helpers: dropdown + search ===
+    function optionLabel(f) {
+      return `${f.name}${f.country ? " — " + f.country : ""}`;
+    }
+
+    function populateFarmSelect(list){
+      const sel = document.getElementById("farmSelect");
+      sel.innerHTML = `<option value="">— Select a farm —</option>`;
+      const frag = document.createDocumentFragment();
+      list.forEach(f => {
+        const opt = document.createElement("option");
+        opt.value = f.ubn;               // waarde = UBN
+        opt.textContent = optionLabel(f); // getoond: "Naam — CC"
+        frag.appendChild(opt);
+      });
+      sel.appendChild(frag);
+    }
+
+    function filterFarms(query){
+      const q = (query || "").trim().toLowerCase();
+      if (!q) { populateFarmSelect(FARMS); return; }
+      const filtered = FARMS.filter(f => {
+        const label = optionLabel(f).toLowerCase();
+        return label.includes(q) || f.ubn.includes(q);
+      });
+      populateFarmSelect(filtered);
+    }
+
+    // init
     buildFarmIndex();
 
     async function sha256Hex(str) {
@@ -407,6 +431,34 @@
 
     ubnInputEl.addEventListener("input", (e) => showFarmNameForUBN(e.target.value));
     ubnInputEl.addEventListener("blur", (e) => showFarmNameForUBN(e.target.value));
+
+    // events: farm search + select → zet UBN & note
+    const farmSearchEl = document.getElementById("farmSearch");
+    const farmSelectEl = document.getElementById("farmSelect");
+    const selectedFarmNoteEl = document.getElementById("selectedFarmNote");
+
+    farmSearchEl.addEventListener("input", (e) => {
+      filterFarms(e.target.value);
+    });
+
+    farmSelectEl.addEventListener("change", (e) => {
+      const ubn = normalizeUBN(e.target.value || "");
+      if (!ubn) {
+        selectedFarmNoteEl.textContent = "";
+        return;
+      }
+      // zet UBN veld
+      ubnInputEl.value = ubn;
+      // toon hint
+      showFarmNameForUBN(ubn);
+      // toon naam + CC + UBN onder dropdown
+      const rec = FARM_INDEX.get(ubn);
+      if (rec) {
+        selectedFarmNoteEl.innerHTML = `<span class="ok">Selected: ${rec.name}${rec.country ? " — " + rec.country : ""} (UBN: ${ubn})</span>`;
+      } else {
+        selectedFarmNoteEl.textContent = "";
+      }
+    });
 
     /* ===== Tekst helpers voor animaties ===== */
     function showFinishing(el, prefixText = "") {
@@ -654,15 +706,12 @@
           alert("Select a data row to delete.");
           return;
         }
-        // bescherm header
         if (SELECTED_ROW_INDEX === 0) {
           alert("Header cannot be deleted.");
           return;
         }
-        // Verwijder uit data & uit DOM
         CSV_MATRIX.splice(SELECTED_ROW_INDEX, 1);
         const tbodyEl = table.querySelector("tbody");
-        // tbody index = SELECTED_ROW_INDEX - 1
         if (tbodyEl && tbodyEl.rows[SELECTED_ROW_INDEX - 1]) {
           tbodyEl.deleteRow(SELECTED_ROW_INDEX - 1);
         }
