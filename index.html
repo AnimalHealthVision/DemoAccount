@@ -198,6 +198,40 @@
         </div>
       </div>
 
+      <!-- Use case 3: AHV / Foto Upload Sectie -->
+      <div class="chat-box" id="photoBox">
+        <h2>Upload a photo of the completed treatment card using your phone</h2>
+        <div class="field-wrap">
+          <input type="file" id="imageUpload" accept="image/png,image/jpeg" />
+        </div>
+        <div class="field-wrap">
+          <button onclick="uploadImage()" id="imageBtn">Verstuur</button>
+        </div>
+        <pre id="imageResponse">Answer will appear here...</pre>
+        <!-- Hidden until output is created -->
+        <button id="openEditorFromImage" class="small-btn" style="display:none;">Open editor</button>
+
+        <div class="file-preview" id="filePreview"></div>
+
+        <!-- CSV Editor -->
+        <div id="csvEditorWrap">
+          <h3>Behandelkaart (bewerken & bevestigen)</h3>
+          <div class="field-wrap">
+            <div style="max-height:420px; overflow:auto; border:1px solid #e5e7eb; border-radius:8px;">
+              <table id="csvEditorTable" class="csv-edit" aria-label="Behandelkaart editor"></table>
+            </div>
+            <div class="editor-actions">
+              <button id="addRowBtn" class="small-btn" style="background:#2563eb; border-color:#1d4ed8;">Add row</button>
+              <button id="deleteRowBtn" class="small-btn" style="background:#ef4444; border-color:#dc2626;">Delete row</button>
+              <button id="confirmCsvBtn" class="small-btn">Confirm (download CSV)</button>
+              <button id="submitCsvBtn" class="small-btn" style="background:#0b5; border-color:#0a6b55;">Submit treatment record</button>
+              <span id="submitStatus" class="status-chip">Status</span>
+              <button id="cancelCsvBtn" class="small-btn" style="background:#6b7280; border-color:#6b7280;">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -229,17 +263,15 @@
         if (inQuotes) {
           if (ch === '"') {
             if (text[i + 1] === '"') { field += '"'; i += 2; continue; }
-            inQuotes = false; i++; continue;
-          } else { field += ch; i++; continue; }
+            inQuotes = false; i++; continue; }
+          else { field += ch; i++; continue; }
         } else {
           if (ch === '"') { inQuotes = true; i++; continue; }
           if (ch === ',') { row.push(field); field = ""; i++; continue; }
           if (ch === '\n' || ch === '\r') {
             if (ch === '\r' && text[i + 1] === '\n') i++;
-            row.push(field); rows.push(row); field = ""; row = []; i++; continue;
-          }
-          field += ch; i++;
-        }
+            row.push(field); rows.push(row); field = ""; row = []; i++; continue; }
+          field += ch; i++; }
       }
       if (field.length || row.length) { row.push(field); rows.push(row); }
       return rows;
@@ -482,351 +514,6 @@
         body: JSON.stringify(payload)
       });
       return await res.text();
-    }
-
-    /* ===== CSV extraction helpers ===== */
-    function extractCsvFromWebhookRaw(rawText){
-      try {
-        const arr = JSON.parse(rawText);
-        const entry = Array.isArray(arr) ? (arr[0] || {}) : {};
-        const textField = entry.text ?? entry.body ?? entry.data ?? entry.json ?? null;
-        if (typeof textField === "string") {
-          const inner = textField;
-          const m1 = inner.match(/```csv\s*([\s\S]*?)```/i);
-          if (m1 && m1[1]) return m1[1].trim();
-          try {
-            const asObj = JSON.parse(inner);
-            const content = asObj?.choices?.[0]?.message?.content ?? "";
-            const m2 = content.match(/```csv\s*([\s\S]*?)```/i);
-            if (m2 && m2[1]) return m2[1].trim();
-            if (content && /^[^\r\n]*,[^\r\n]*$/.test(content.split("\n")[0] || "")) return content.trim();
-          } catch {}
-          if (inner && /^[^\r\n]*,[^\r\n]*$/.test((inner.split("\n")[0] || ""))) return inner.trim();
-        }
-      } catch {}
-      try {
-        const obj = JSON.parse(rawText);
-        const content = obj?.choices?.[0]?.message?.content ?? "";
-        const m = content.match(/```csv\s*([\s\S]*?)```/i);
-        if (m && m[1]) return m[1].trim();
-        if (content && /^[^\r\n]*,[^\r\n]*$/.test(content.split("\n")[0] || "")) return content.trim();
-      } catch {}
-      const m3 = rawText.match(/```csv\s*([\s\S]*?)```/i);
-      if (m3 && m3[1]) return m3[1].trim();
-      return "";
-    }
-    function csvToMatrix(csv){
-      const rows = parseCSV(csv);
-      return rows.filter(r => r.some(c => String(c||"").trim().length));
-    }
-    function matrixToCSV(matrix){
-      const esc = v => {
-        const s = String(v ?? "");
-        if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g,'""')}"`;
-        return s;
-      };
-      return matrix.map(row => row.map(esc).join(",")).join("\n");
-    }
-
-    // --- CSV editor state ---
-    let CSV_MATRIX = null;
-    let CSV_HEADERS = null;
-    let SELECTED_ROW_INDEX = null; // 1-based (1 = eerste data-rij), 0 = header
-
-    const NON_TOGGLE_COLUMNS = new Set(["KOE NUMMER","DATUM","OPMERKINGEN"]);
-
-    function bindRowSelection(tr, dataRowIndex){ // dataRowIndex = r (1..n) corresponderend met CSV_MATRIX
-      tr.addEventListener("click", () => {
-        const tbody = tr.parentElement;
-        [...tbody.children].forEach(row => row.classList.remove("row-selected"));
-        tr.classList.add("row-selected");
-        SELECTED_ROW_INDEX = dataRowIndex;
-      });
-    }
-
-    function renderCsvEditor(matrix){
-      if (!matrix || !matrix.length) return;
-      const wrap = document.getElementById("csvEditorWrap");
-      const table = document.getElementById("csvEditorTable");
-      table.innerHTML = "";
-
-      CSV_MATRIX = matrix.map(r => [...r]); // clone
-      CSV_HEADERS = CSV_MATRIX[0].map(h => String(h).trim());
-      SELECTED_ROW_INDEX = null;
-
-      // Thead
-      const thead = document.createElement("thead");
-      const trh = document.createElement("tr");
-      CSV_HEADERS.forEach(h => {
-        const th = document.createElement("th");
-        th.textContent = h;
-        trh.appendChild(th);
-      });
-      thead.appendChild(trh);
-      table.appendChild(thead);
-
-      // Tbody
-      const tbody = document.createElement("tbody");
-      for (let r = 1; r < CSV_MATRIX.length; r++){
-        const tr = document.createElement("tr");
-        CSV_HEADERS.forEach((h, cIdx) => {
-          const td = document.createElement("td");
-          if (!NON_TOGGLE_COLUMNS.has(h)) {
-            const val = String(CSV_MATRIX[r][cIdx] ?? "").trim().toUpperCase();
-            const checked = (val === "JA");
-            td.className = "yn-cell";
-            const cb = document.createElement("input");
-            cb.type = "checkbox";
-            cb.checked = checked;
-            cb.addEventListener("change", () => {
-              CSV_MATRIX[r][cIdx] = cb.checked ? "JA" : "NEE";
-            });
-            td.appendChild(cb);
-          } else {
-            const inp = document.createElement("input");
-            inp.type = "text";
-            inp.value = CSV_MATRIX[r][cIdx] ?? "";
-            inp.addEventListener("input", () => {
-              CSV_MATRIX[r][cIdx] = inp.value;
-            });
-            td.appendChild(inp);
-          }
-          tr.appendChild(td);
-        });
-        bindRowSelection(tr, r);
-        tbody.appendChild(tr);
-      }
-      table.appendChild(tbody);
-
-      // Buttons + actions
-      const statusEl = document.getElementById("submitStatus");
-      statusEl.style.display = "none";
-      statusEl.className = "status-chip";
-
-      // Add row handler
-      document.getElementById("addRowBtn").onclick = () => {
-        if (!CSV_HEADERS) return;
-        const newRow = CSV_HEADERS.map(h => NON_TOGGLE_COLUMNS.has(h) ? "" : "NEE");
-        CSV_MATRIX.push(newRow);
-
-        const tr = document.createElement("tr");
-        CSV_HEADERS.forEach((h, cIdx) => {
-          const td = document.createElement("td");
-          if (!NON_TOGGLE_COLUMNS.has(h)) {
-            td.className = "yn-cell";
-            const cb = document.createElement("input");
-            cb.type = "checkbox";
-            cb.checked = false; // "NEE"
-            cb.addEventListener("change", () => {
-              CSV_MATRIX[CSV_MATRIX.length - 1][cIdx] = cb.checked ? "JA" : "NEE";
-            });
-            td.appendChild(cb);
-          } else {
-            const inp = document.createElement("input");
-            inp.type = "text";
-            inp.value = "";
-            inp.addEventListener("input", (e) => {
-              CSV_MATRIX[CSV_MATRIX.length - 1][cIdx] = e.target.value;
-            });
-            td.appendChild(inp);
-          }
-          tr.appendChild(td);
-        });
-        bindRowSelection(tr, CSV_MATRIX.length - 1);
-        table.querySelector("tbody").appendChild(tr);
-      };
-
-      // Delete row handler (verwijdert geselecteerde data-rij)
-      document.getElementById("deleteRowBtn").onclick = () => {
-        if (SELECTED_ROW_INDEX === null || SELECTED_ROW_INDEX <= 0) {
-          alert("Select a data row to delete.");
-          return;
-        }
-        if (SELECTED_ROW_INDEX === 0) {
-          alert("Header cannot be deleted.");
-          return;
-        }
-        CSV_MATRIX.splice(SELECTED_ROW_INDEX, 1);
-        const tbodyEl = table.querySelector("tbody");
-        if (tbodyEl && tbodyEl.rows[SELECTED_ROW_INDEX - 1]) {
-          tbodyEl.deleteRow(SELECTED_ROW_INDEX - 1);
-        }
-        SELECTED_ROW_INDEX = null;
-      };
-
-      document.getElementById("confirmCsvBtn").onclick = () => {
-        const finalCsv = matrixToCSV(CSV_MATRIX);
-        const blob = new Blob([finalCsv], { type: "text/csv;charset=utf-8" });
-        saveAs(blob, "behandelkaart.csv");
-      };
-
-      document.getElementById("submitCsvBtn").onclick = async () => {
-        const ubn = normalizeUBN(document.getElementById("ubnInput").value);
-        const finalCsv = matrixToCSV(CSV_MATRIX);
-        await submitCorrections(finalCsv, ubn, statusEl);
-      };
-
-      document.getElementById("cancelCsvBtn").onclick = () => {
-        wrap.style.display = "none";
-      };
-
-      wrap.style.display = "block";
-    }
-
-    /* Robust submit with fallback & diagnostics  */
-    async function submitCorrections(csvText, ubn, statusEl){
-      statusEl.style.display = "inline-block";
-      statusEl.textContent = "Submitting...";
-      statusEl.className = "status-chip";
-
-      const requestId = (crypto && crypto.randomUUID)
-        ? crypto.randomUUID()
-        : (Date.now().toString(36) + Math.random().toString(36).slice(2));
-
-      const basePayload = {
-        type: "treatment_record",
-        request_id: requestId,
-        ubn: ubn || undefined,
-        corrected_csv: csvText
-      };
-
-      async function assertOk(res){
-        const bodyText = await res.text();
-        if (!res.ok) {
-          const msg = `HTTP ${res.status} ${res.statusText} — ${bodyText.slice(0, 500)}`;
-          throw new Error(msg);
-        }
-        return bodyText;
-      }
-
-      // Try JSON
-      try {
-        const res = await fetch(CORRECTION_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Accept": "application/json" },
-          body: JSON.stringify(basePayload)
-        });
-        await assertOk(res);
-        statusEl.textContent = "Submitted ✓";
-        statusEl.className = "status-chip ok";
-        return;
-      } catch (e1) {
-        console.warn("JSON submit failed, retry as form-data:", e1);
-      }
-
-      // Fallback: multipart/form-data
-      try {
-        const fd = new FormData();
-        fd.append("type", "treatment_record");
-        fd.append("request_id", requestId);
-        fd.append("ubn", ubn || "");
-        fd.append("corrected_csv", csvText);
-
-        const res2 = await fetch(CORRECTION_URL, { method: "POST", body: fd });
-        await assertOk(res2);
-        statusEl.textContent = "Submitted ✓ (form-data)";
-        statusEl.className = "status-chip ok";
-        return;
-      } catch (e2) {
-        statusEl.textContent = "Failed: " + e2.message;
-        statusEl.className = "status-chip err";
-      }
-    }
-
-    /* ===============================
-       Parallel flow S2/S1 + CSV editor
-       =============================== */
-    async function sendToGPT() {
-      const usingPreset = togglePresets.checked;
-      const preset_id   = usingPreset ? (presetSelect.value || "") : null;
-      const preset_text = usingPreset ? (presetSelect.options[presetSelect.selectedIndex]?.text || "") : null;
-
-      const message = usingPreset ? (preset_text || "").trim()
-                                  : (userInputEl.value || "").trim();
-      const messageMultipleField = usingPreset ? preset_text : null;
-
-      const ubnRaw = document.getElementById("ubnInput").value;
-      const ubn = normalizeUBN(ubnRaw);
-      const responseEl = document.getElementById("response");
-      const dlRow = document.getElementById("downloadRow");
-      const sendBtn = document.getElementById("sendBtn");
-
-      currentRunId = ++runIdCounter;
-      const myRunId = currentRunId;
-      responseEl.textContent = "";
-      clearThinking(responseEl);
-      dlRow.style.display = "none";
-      sendBtn.disabled = true;
-
-      const requestId = (crypto && crypto.randomUUID)
-        ? crypto.randomUUID()
-        : (Date.now().toString(36) + Math.random().toString(36).slice(2));
-
-      try {
-        const payload = {
-          company_name: "TestAccount",
-          company_description: document.querySelector('meta[name="company-description"]').content,
-          message,
-          messageMultipleField,
-          question_mode: usingPreset ? "preset" : "free",
-          preset_id,
-          preset_text,
-          ubn: ubn || undefined,
-          request_id: requestId
-        };
-
-        let s2Resolved = false;
-        const s2Promise = fetchText(SCENARIO2_URL, payload).then(txt => { s2Resolved = true; return txt; });
-        const s1Promise = fetchText(SCENARIO1_URL, payload);
-
-        const preCountdownId = startAnalyzingCountdown(
-          responseEl,
-          5,
-          "",
-          () => { if (myRunId === currentRunId && !s2Resolved) showFinishing(responseEl); }
-        );
-
-        // S2
-        const s2Raw = await s2Promise;
-        if (myRunId !== currentRunId) return;
-
-        clearInterval(preCountdownId);
-        clearThinking(responseEl);
-
-        const s2Show = stripJsonBlocks(s2Raw);
-        await typeOut(s2Show, responseEl, { clear: true, speed: TYPE_SPEED_S2 });
-
-        tryRenderCsvFromReply(s2Raw);
-
-        if (myRunId !== currentRunId) return;
-        const wait10Id = startAnalyzingCountdown(
-          responseEl,
-          10,
-          s2Show,
-          () => { if (myRunId === currentRunId) showFinishing(responseEl, s2Show); }
-        );
-
-        const s1Raw = await s1Promise;
-        if (myRunId !== currentRunId) { clearInterval(wait10Id); return; }
-
-        clearInterval(wait10Id);
-        clearThinking(responseEl);
-
-        responseEl.textContent = s2Show + "\n\n";
-        const s1Show = stripJsonBlocks(s1Raw);
-        await typeOut(s1Show, responseEl, { clear: false, speed: TYPE_SPEED });
-
-        tryRenderCsvFromReply(s1Raw);
-
-        dlRow.style.display = "flex";
-
-      } catch (err) {
-        if (myRunId !== currentRunId) return;
-        clearThinking(responseEl);
-        responseEl.textContent = "Error: " + err.message;
-      } finally {
-        if (myRunId === currentRunId) sendBtn.disabled = false;
-      }
     }
   </script>
 </body>
