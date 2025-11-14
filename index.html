@@ -590,7 +590,7 @@
     let CSV_HEADERS = null;
     let SELECTED_ROW_INDEX = null; // 1-based (1 = eerste data-rij), 0 = header
 
-    const NON_TOGGLE_COLUMNS = new Set(["KOE NUMMER","DATUM","OPMERKINGEN"]);
+    const NON_TOGGLE_COLUMNS = new Set(["COW NUMBER","DATE DD/MM","COMMENTS"]);
 
     function bindRowSelection(tr, dataRowIndex){ // dataRowIndex = r (1..n) corresponderend met CSV_MATRIX
       tr.addEventListener("click", () => {
@@ -1038,6 +1038,7 @@
   </script>
 </body>
 </html>
+
 
 
 
