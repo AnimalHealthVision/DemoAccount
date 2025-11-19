@@ -378,7 +378,6 @@
         const header = rows[0].map(h => String(h).trim().toLowerCase());
         const ubnIdx   = header.indexOf("ubn");
         const nameIdx  = header.indexOf("farm_name");
-        the
         const ccIdx    = header.indexOf("country_code");
         const nameIdxAlt = nameIdx >= 0 ? nameIdx : header.findIndex(h => /name/i.test(h));
         const ubnIdxAlt  = ubnIdx  >= 0 ? ubnIdx  : header.findIndex(h => /ubn|id|identifier/i.test(h));
@@ -397,6 +396,7 @@
             FARMS.push({ ubn: key, name, country });
           }
         }
+        // Vul beide dropdowns
         populateFarmSelect(FARMS);
         populateFarmSelectPhoto(FARMS);
       } catch (e) {
@@ -408,7 +408,7 @@
       const hint = document.getElementById("farmNameHint");
       const key = normalizeUBN(rawUBN);
       if (!key) { hint.textContent = ""; return; }
-      // (optioneel kun je hier de naam tonen, maar dit was in jouw originele code leeg gelaten)
+      // hier kun je desgewenst nog naam + land tonen
     }
 
     // === helpers: dropdown + search (Use case 1) ===
