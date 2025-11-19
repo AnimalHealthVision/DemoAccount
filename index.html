@@ -13,7 +13,7 @@
     .gate-card { background:#fff; width:90%; max-width:420px; padding:24px; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,.15); text-align:center; }
     .gate-card h3 { margin:0 0 8px; color:#007b5e; }
     .gate-card p { margin:0 0 16px; color:#555; }
-    .gate-card input[type="password"]{ width:100%; padding:12px; font-size:16px; border:1px solid:#ccc; border-radius:8px; margin-bottom:12px; }
+    .gate-card input[type="password"]{ width:100%; padding:12px; font-size:16px; border:1px solid #ccc; border-radius:8px; margin-bottom:12px; }
     .gate-card button{ width:100%; padding:12px; font-size:16px; border:none; border-radius:8px; background:#007b5e; color:#fff; cursor:pointer; }
     .gate-card button:hover{ background:#005c49; }
     .gate-error{ color:#c02727; min-height:22px; margin-top:8px; font-size:14px; }
@@ -193,7 +193,7 @@
         <!-- Intro -->
         <h2>In this demo, you can ask questions about the farm, cows, or sales data from the past 12 months..</h2>
 
-        <!-- Nieuwe: Zoekbare dropdown met farms (op naam + country), zet UBN automatisch -->
+        <!-- Use case 1: farm selectie -->
         <div class="field-wrap" id="farmPickerWrap">
           <input id="farmSearch" placeholder="Type to filter… e.g. 'Smith', 'NL', 'FR'">
         </div>
@@ -253,6 +253,17 @@
       <!-- Use case 3: AHV / Foto Upload Sectie -->
       <div class="chat-box" id="photoBox">
         <h2>Upload a photo of the completed treatment card using your phone</h2>
+
+        <!-- Farm selectie voor use case 3 (zelfde gedrag als use case 1) -->
+        <div class="field-wrap" id="farmPickerWrapPhoto">
+          <input id="farmSearchPhoto" placeholder="Type to filter… e.g. 'Smith', 'NL', 'FR'">
+        </div>
+        <div class="field-wrap">
+          <select id="farmSelectPhoto" aria-label="Select a farm for this treatment card">
+            <option value="">— Select a farm —</option>
+          </select>
+          <div id="selectedFarmNotePhoto" class="hint"></div>
+        </div>
 
         <!-- VOORBEELD BEHANDELKAART -->
         <div class="example-card">
@@ -367,6 +378,7 @@
         const header = rows[0].map(h => String(h).trim().toLowerCase());
         const ubnIdx   = header.indexOf("ubn");
         const nameIdx  = header.indexOf("farm_name");
+        the
         const ccIdx    = header.indexOf("country_code");
         const nameIdxAlt = nameIdx >= 0 ? nameIdx : header.findIndex(h => /name/i.test(h));
         const ubnIdxAlt  = ubnIdx  >= 0 ? ubnIdx  : header.findIndex(h => /ubn|id|identifier/i.test(h));
@@ -386,6 +398,7 @@
           }
         }
         populateFarmSelect(FARMS);
+        populateFarmSelectPhoto(FARMS);
       } catch (e) {
         console.warn("Farm index build failed:", e);
       }
@@ -395,16 +408,17 @@
       const hint = document.getElementById("farmNameHint");
       const key = normalizeUBN(rawUBN);
       if (!key) { hint.textContent = ""; return; }
+      // (optioneel kun je hier de naam tonen, maar dit was in jouw originele code leeg gelaten)
+    }
 
-     }
-
-    // === helpers: dropdown + search ===
+    // === helpers: dropdown + search (Use case 1) ===
     function optionLabel(f) {
       return `${f.name}${f.country ? " — " + f.country : ""}`;
     }
 
     function populateFarmSelect(list){
       const sel = document.getElementById("farmSelect");
+      if (!sel) return;
       sel.innerHTML = `<option value="">— Select a farm —</option>`;
       const frag = document.createDocumentFragment();
       list.forEach(f => {
@@ -426,7 +440,32 @@
       populateFarmSelect(filtered);
     }
 
-    // init
+    // === helpers: dropdown + search (Use case 3 – photo) ===
+    function populateFarmSelectPhoto(list){
+      const sel = document.getElementById("farmSelectPhoto");
+      if (!sel) return;
+      sel.innerHTML = `<option value="">— Select a farm —</option>`;
+      const frag = document.createDocumentFragment();
+      list.forEach(f => {
+        const opt = document.createElement("option");
+        opt.value = f.ubn;
+        opt.textContent = optionLabel(f);
+        frag.appendChild(opt);
+      });
+      sel.appendChild(frag);
+    }
+
+    function filterFarmsPhoto(query){
+      const q = (query || "").trim().toLowerCase();
+      if (!q) { populateFarmSelectPhoto(FARMS); return; }
+      const filtered = FARMS.filter(f => {
+        const label = optionLabel(f).toLowerCase();
+        return label.includes(q) || f.ubn.includes(q);
+      });
+      populateFarmSelectPhoto(filtered);
+    }
+
+    // init CSV/farm index
     buildFarmIndex();
 
     async function sha256Hex(str) {
@@ -472,30 +511,64 @@
     ubnInputEl.addEventListener("input", (e) => showFarmNameForUBN(e.target.value));
     ubnInputEl.addEventListener("blur", (e) => showFarmNameForUBN(e.target.value));
 
-    // events: farm search + select → zet UBN & note
+    // events: farm search + select → zet UBN & note (Use case 1)
     const farmSearchEl = document.getElementById("farmSearch");
     const farmSelectEl = document.getElementById("farmSelect");
     const selectedFarmNoteEl = document.getElementById("selectedFarmNote");
 
-    farmSearchEl.addEventListener("input", (e) => {
-      filterFarms(e.target.value);
-    });
+    if (farmSearchEl) {
+      farmSearchEl.addEventListener("input", (e) => {
+        filterFarms(e.target.value);
+      });
+    }
 
-    farmSelectEl.addEventListener("change", (e) => {
-      const ubn = normalizeUBN(e.target.value || "");
-      if (!ubn) {
-        selectedFarmNoteEl.textContent = "";
-        return;
-      }
-      ubnInputEl.value = ubn;
-      showFarmNameForUBN(ubn);
-      const rec = FARM_INDEX.get(ubn);
-      if (rec) {
-        selectedFarmNoteEl.innerHTML = `<span class="ok">Selected: ${rec.name}${rec.country ? " — " + rec.country : ""} (UBN: ${ubn})</span>`;
-      } else {
-        selectedFarmNoteEl.textContent = "";
-      }
-    });
+    if (farmSelectEl) {
+      farmSelectEl.addEventListener("change", (e) => {
+        const ubn = normalizeUBN(e.target.value || "");
+        if (!ubn) {
+          selectedFarmNoteEl.textContent = "";
+          return;
+        }
+        ubnInputEl.value = ubn;
+        showFarmNameForUBN(ubn);
+        const rec = FARM_INDEX.get(ubn);
+        if (rec) {
+          selectedFarmNoteEl.innerHTML = `<span class="ok">Selected: ${rec.name}${rec.country ? " — " + rec.country : ""} (UBN: ${ubn})</span>`;
+        } else {
+          selectedFarmNoteEl.textContent = "";
+        }
+      });
+    }
+
+    // events: farm search + select → zet UBN & note (Use case 3)
+    const farmSearchElPhoto = document.getElementById("farmSearchPhoto");
+    const farmSelectElPhoto = document.getElementById("farmSelectPhoto");
+    const selectedFarmNoteElPhoto = document.getElementById("selectedFarmNotePhoto");
+
+    if (farmSearchElPhoto) {
+      farmSearchElPhoto.addEventListener("input", (e) => {
+        filterFarmsPhoto(e.target.value);
+      });
+    }
+
+    if (farmSelectElPhoto) {
+      farmSelectElPhoto.addEventListener("change", (e) => {
+        const ubn = normalizeUBN(e.target.value || "");
+        if (!ubn) {
+          selectedFarmNoteElPhoto.textContent = "";
+          return;
+        }
+        // gebruik dezelfde UBN input als use case 1
+        ubnInputEl.value = ubn;
+        showFarmNameForUBN(ubn);
+        const rec = FARM_INDEX.get(ubn);
+        if (rec) {
+          selectedFarmNoteElPhoto.innerHTML = `<span class="ok">Selected (photo): ${rec.name}${rec.country ? " — " + rec.country : ""} (UBN: ${ubn})</span>`;
+        } else {
+          selectedFarmNoteElPhoto.textContent = "";
+        }
+      });
+    }
 
     /* ===== Tekst helpers voor animaties ===== */
     function showFinishing(el, prefixText = "") {
