@@ -13,7 +13,7 @@
     .gate-card { background:#fff; width:90%; max-width:420px; padding:24px; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,.15); text-align:center; }
     .gate-card h3 { margin:0 0 8px; color:#007b5e; }
     .gate-card p { margin:0 0 16px; color:#555; }
-    .gate-card input[type="password"]{ width:100%; padding:12px; font-size:16px; border:1px solid #ccc; border-radius:8px; margin-bottom:12px; }
+    .gate-card input[type="password"]{ width:100%; padding:12px; font-size:16px; border:1px solid:#ccc; border-radius:8px; margin-bottom:12px; }
     .gate-card button{ width:100%; padding:12px; font-size:16px; border:none; border-radius:8px; background:#007b5e; color:#fff; cursor:pointer; }
     .gate-card button:hover{ background:#005c49; }
     .gate-error{ color:#c02727; min-height:22px; margin-top:8px; font-size:14px; }
@@ -24,14 +24,12 @@
     .wrap{ display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding-top:30px; }
     .chat-box{
       background:#fff; padding:30px; border-radius:12px; box-shadow:0 8px 20px rgba(0,0,0,.1);
-      width:90%; max-width:1100px; /* was 740px → iets wijder gemaakt */
+      width:90%; max-width:1100px;
       text-align:center; margin:30px auto;
     }
     img.logo{ width:150px; margin-bottom:10px; }
     h1{ color:#007b5e; margin:10px 0 5px 0; font-size:32px; }
     h2{ color:#555; margin:0 0 10px 0; font-size:16px; font-weight:normal; }
-
-    /* (Oude farm-table styles verwijderd uit gebruik) */
 
     /* Controls */
     .field-wrap { width:90%; margin:0 auto 10px; text-align:left; }
@@ -64,7 +62,7 @@
       white-space:pre-wrap;
       word-wrap:break-word;
       min-height:50px;
-      width:100%; /* was 96% → volledig binnen de bredere kaart */
+      width:100%;
       box-sizing:border-box;
     }
 
@@ -93,7 +91,7 @@
     .hint .ok { color:#065f46; }
     .hint .warn { color:#9a3412; }
 
-    /* Preview blok */
+    /* Preview blok (upload) */
     .file-preview{ margin-top:10px; text-align:left; font-size:14px; color:#374151; background:#f9fafb; border:1px dashed #d1d5db; padding:10px; border-radius:8px; }
     .file-preview img{ max-width:100%; height:auto; border-radius:6px; }
 
@@ -197,7 +195,7 @@
 
         <!-- Nieuwe: Zoekbare dropdown met farms (op naam + country), zet UBN automatisch -->
         <div class="field-wrap" id="farmPickerWrap">
-            <input id="farmSearch" placeholder="Type to filter… e.g. 'Smith', 'NL', 'FR'">
+          <input id="farmSearch" placeholder="Type to filter… e.g. 'Smith', 'NL', 'FR'">
         </div>
         <div class="field-wrap">
           <select id="farmSelect" aria-label="Select a farm by name and country">
@@ -258,13 +256,13 @@
 
         <!-- VOORBEELD BEHANDELKAART -->
         <div class="example-card">
-          <div class="example-card-title">Voorbeeld behandelkaart</div>
-          <p>Dit is een voorbeeld van de AHV behandelkaart die je kunt invullen, fotograferen en uploaden. Klik op de link om de PDF in een nieuw venster te openen.</p>
+          <div class="example-card-title">Example treatment card</div>
           <a href="AHV-DATA-FORM-5.02-NL-page1.pdf" target="_blank" rel="noopener">
             Open voorbeeld behandelkaart (PDF)
           </a>
           <div class="example-card-frame">
-            <embed src="AHV-DATA-FORM-5.02-NL-page1.pdf#page=1&zoom=90" type="application/pdf" />
+            <!-- kleiner op de pagina door zoom=70 -->
+            <embed src="AHV-DATA-FORM-5.02-NL-page1.pdf#page=1&zoom=70" type="application/pdf" />
           </div>
         </div>
 
@@ -400,7 +398,7 @@
 
      }
 
-    // === nieuwe helpers: dropdown + search ===
+    // === helpers: dropdown + search ===
     function optionLabel(f) {
       return `${f.name}${f.country ? " — " + f.country : ""}`;
     }
@@ -411,8 +409,8 @@
       const frag = document.createDocumentFragment();
       list.forEach(f => {
         const opt = document.createElement("option");
-        opt.value = f.ubn;               // waarde = UBN
-        opt.textContent = optionLabel(f); // getoond: "Naam — CC"
+        opt.value = f.ubn;
+        opt.textContent = optionLabel(f);
         frag.appendChild(opt);
       });
       sel.appendChild(frag);
@@ -489,11 +487,8 @@
         selectedFarmNoteEl.textContent = "";
         return;
       }
-      // zet UBN veld
       ubnInputEl.value = ubn;
-      // toon hint
       showFarmNameForUBN(ubn);
-      // toon naam + CC + UBN onder dropdown
       const rec = FARM_INDEX.get(ubn);
       if (rec) {
         selectedFarmNoteEl.innerHTML = `<span class="ok">Selected: ${rec.name}${rec.country ? " — " + rec.country : ""} (UBN: ${ubn})</span>`;
@@ -637,11 +632,11 @@
     // --- CSV editor state ---
     let CSV_MATRIX = null;
     let CSV_HEADERS = null;
-    let SELECTED_ROW_INDEX = null; // 1-based (1 = eerste data-rij), 0 = header
+    let SELECTED_ROW_INDEX = null;
 
     const NON_TOGGLE_COLUMNS = new Set(["COW NUMBER","DATE DD/MM","COMMENTS"]);
 
-    function bindRowSelection(tr, dataRowIndex){ // dataRowIndex = r (1..n) corresponderend met CSV_MATRIX
+    function bindRowSelection(tr, dataRowIndex){
       tr.addEventListener("click", () => {
         const tbody = tr.parentElement;
         [...tbody.children].forEach(row => row.classList.remove("row-selected"));
@@ -656,7 +651,7 @@
       const table = document.getElementById("csvEditorTable");
       table.innerHTML = "";
 
-      CSV_MATRIX = matrix.map(r => [...r]); // clone
+      CSV_MATRIX = matrix.map(r => [...r]);
       CSV_HEADERS = CSV_MATRIX[0].map(h => String(h).trim());
       SELECTED_ROW_INDEX = null;
 
@@ -704,12 +699,11 @@
       }
       table.appendChild(tbody);
 
-      // Buttons + actions
       const statusEl = document.getElementById("submitStatus");
       statusEl.style.display = "none";
       statusEl.className = "status-chip";
 
-      // Add row handler
+      // Add row
       document.getElementById("addRowBtn").onclick = () => {
         if (!CSV_HEADERS) return;
         const newRow = CSV_HEADERS.map(h => NON_TOGGLE_COLUMNS.has(h) ? "" : "NEE");
@@ -722,7 +716,7 @@
             td.className = "yn-cell";
             const cb = document.createElement("input");
             cb.type = "checkbox";
-            cb.checked = false; // "NEE"
+            cb.checked = false;
             cb.addEventListener("change", () => {
               CSV_MATRIX[CSV_MATRIX.length - 1][cIdx] = cb.checked ? "JA" : "NEE";
             });
@@ -742,7 +736,7 @@
         table.querySelector("tbody").appendChild(tr);
       };
 
-      // Delete row handler (verwijdert geselecteerde data-rij)
+      // Delete row
       document.getElementById("deleteRowBtn").onclick = () => {
         if (SELECTED_ROW_INDEX === null || SELECTED_ROW_INDEX <= 0) {
           alert("Select a data row to delete.");
@@ -779,7 +773,6 @@
       wrap.style.display = "block";
     }
 
-    /* Robust submit with fallback & diagnostics  */
     async function submitCorrections(csvText, ubn, statusEl){
       statusEl.style.display = "inline-block";
       statusEl.textContent = "Submitting...";
@@ -1008,7 +1001,6 @@
 
       reader.onload = async function(e) {
         const base64Image = e.target.result; // data URL
-        /* ▼▼ AANGEPAST: engels tekst ▼▼ */
         previewEl.innerHTML = `<strong>Your upload:</strong><br><img src="${base64Image}" alt="Upload preview" />`;
 
         const ubn = normalizeUBN(document.getElementById("ubnInput").value);
