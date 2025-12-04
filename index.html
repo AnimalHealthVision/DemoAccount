@@ -848,63 +848,40 @@
     }
 
     async function submitCorrections(csvText, ubn, statusEl){
-      statusEl.style.display = "inline-block";
-      statusEl.textContent = "Submitting...";
-      statusEl.className = "status-chip";
+  statusEl.style.display = "inline-block";
+  statusEl.textContent = "Submitting...";
+  statusEl.className = "status-chip";
 
-      const requestId = (crypto && crypto.randomUUID)
-        ? crypto.randomUUID()
-        : (Date.now().toString(36) + Math.random().toString(36).slice(2));
+  const requestId = (crypto && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : (Date.now().toString(36) + Math.random().toString(36).slice(2));
 
-      const basePayload = {
-        type: "treatment_record",
-        request_id: requestId,
-        ubn: ubn || undefined,
-        corrected_csv: csvText
-      };
+  const payload = {
+    company_name: "TestAccount",
+    company_description: document.querySelector('meta[name="company-description"]').content,
+    message: "Behandelkaart bevestigd in editor",
+    ubn: ubn || undefined,
+    request_id: requestId,
+    corrected_csv: csvText,   // volledige editor CSV
+    source: "csv_editor",
+    phase: "final_submit"
+  };
 
-      async function assertOk(res){
-        const bodyText = await res.text();
-        if (!res.ok) {
-          const msg = `HTTP ${res.status} ${res.statusText} — ${bodyText.slice(0, 500)}`;
-          throw new Error(msg);
-        }
-        return bodyText;
-      }
+  console.log("Submitting treatment record payload:", payload);
 
-      // Try JSON
-      try {
-        const res = await fetch(CORRECTION_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Accept": "application/json" },
-          body: JSON.stringify(basePayload)
-        });
-        await assertOk(res);
-        statusEl.textContent = "Submitted ✓";
-        statusEl.className = "status-chip ok";
-        return;
-      } catch (e1) {
-        console.warn("JSON submit failed, retry as form-data:", e1);
-      }
+  try {
+    const reply = await fetchText(PHOTO_URL, payload);
+    console.log("Submit treatment record reply:", reply);
 
-      // Fallback: multipart/form-data
-      try {
-        const fd = new FormData();
-        fd.append("type", "treatment_record");
-        fd.append("request_id", requestId);
-        fd.append("ubn", ubn || "");
-        fd.append("corrected_csv", csvText);
+    statusEl.textContent = "Submitted ✓";
+    statusEl.className = "status-chip ok";
+  } catch (err) {
+    console.error("Submit treatment record failed:", err);
+    statusEl.textContent = "Failed: " + err.message;
+    statusEl.className = "status-chip err";
+  }
+}
 
-        const res2 = await fetch(CORRECTION_URL, { method: "POST", body: fd });
-        await assertOk(res2);
-        statusEl.textContent = "Submitted ✓ (form-data)";
-        statusEl.className = "status-chip ok";
-        return;
-      } catch (e2) {
-        statusEl.textContent = "Failed: " + e2.message;
-        statusEl.className = "status-chip err";
-      }
-    }
 
     /* ===============================
        Parallel flow S2/S1 + CSV editor
@@ -1153,6 +1130,7 @@
   </script>
 </body>
 </html>
+
 
 
 
